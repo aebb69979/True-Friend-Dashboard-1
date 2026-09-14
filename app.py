@@ -6,8 +6,11 @@ unless every By Shop and Summary cell reconciles against the workbook's own
 cached values. The arithmetic here is limited to summing published columns
 and dividing the sums, the same way Summary's region rows do.
 
-Bilingual: every visible string goes through L(en, th). Thai is the default.
-Data values (shop names, codes, regions) are shown as the source has them.
+Bilingual, Thai by default. The rule: NAMES stay English in both languages --
+tabs, column headers, metric and chart titles, control labels, legend and
+tooltip fields, label values (Mass, Decorated, Total, Sep'26) -- so a Thai and
+an English viewer point at the same words. Only explanation goes through
+L(en, th): captions, notes, help text, comparison lines and messages.
 """
 
 from __future__ import annotations
@@ -47,26 +50,24 @@ def L(en: str, th: str) -> str:
 def lang_picker(container, key: str) -> None:
     def _apply():
         st.session_state["lang"] = st.session_state[key]
-    container.selectbox(L("Language", "ภาษา"), LANGS, index=LANGS.index(LANG),
+    container.selectbox("Language", LANGS, index=LANGS.index(LANG),
                         key=key, on_change=_apply, label_visibility="collapsed")
 
 
-TH_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.",
-             "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
 EN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct",
              "Nov", "Dec"]
 
 
 def month_short(key: str) -> str:
-    """'2026-09' -> "Sep'26" / "ก.ย. 69" (Thai uses the Buddhist year)."""
+    """'2026-09' -> "Sep'26", as the workbook labels months."""
     y, m = int(key[:4]), int(key[5:7])
-    return L(f"{EN_MONTHS[m - 1]}'{y % 100:02d}", f"{TH_MONTHS[m - 1]} {(y + 543) % 100:02d}")
+    return f"{EN_MONTHS[m - 1]}'{y % 100:02d}"
 
 
 def month_long(key: str) -> str:
-    """'2026-09' -> 'Sep 2026' / 'ก.ย. 2569'."""
+    """'2026-09' -> 'Sep 2026'."""
     y, m = int(key[:4]), int(key[5:7])
-    return L(f"{EN_MONTHS[m - 1]} {y}", f"{TH_MONTHS[m - 1]} {y + 543}")
+    return f"{EN_MONTHS[m - 1]} {y}"
 
 
 # --- theme ------------------------------------------------------------------
@@ -87,17 +88,17 @@ def theme() -> dict:
 
 
 T = theme()
-SEGMENTS = [("mass", L("Mass", "กลุ่มทั่วไป (Mass)")),
-            ("migrant", L("Migrant", "แรงงานข้ามชาติ (Migrant)")),
-            ("tourist", L("Tourist", "นักท่องเที่ยว (Tourist)"))]
+SEGMENTS = [("mass", "Mass"),
+            ("migrant", "Migrant"),
+            ("tourist", "Tourist")]
 # Colour follows the entity, never its rank or the current filter. The build
 # publishes English visibility keys; these are only how they are printed.
 VIS_ORDER = ["Decorated", "To decorate", "To decorate (round 2)"]
-VIS_LABEL = {"Decorated": L("Decorated", "ตกแต่งแล้ว"),
-             "To decorate": L("To decorate", "รอตกแต่ง"),
-             "To decorate (round 2)": L("To decorate (round 2)", "รอตกแต่ง (รอบ 2)"),
-             "Not decorating": L("Not decorating", "ไม่ตกแต่ง"),
-             "Not set": L("Not set", "ไม่ระบุ")}
+VIS_LABEL = {"Decorated": "Decorated",
+             "To decorate": "To decorate",
+             "To decorate (round 2)": "To decorate (round 2)",
+             "Not decorating": "Not decorating",
+             "Not set": "Not set"}
 
 
 def vis_label(key: str) -> str:
@@ -184,8 +185,8 @@ def check_password() -> bool:
             st.caption(L("Retail partner performance · enter the password to continue.",
                          "ผลการดำเนินงานร้านค้าพันธมิตร · กรอกรหัสผ่านเพื่อเข้าใช้งาน"))
             with st.form("login", border=False):
-                st.text_input(L("Password", "รหัสผ่าน"), type="password", key="_pw")
-                submitted = st.form_submit_button(L("Sign in", "เข้าสู่ระบบ"),
+                st.text_input("Password", type="password", key="_pw")
+                submitted = st.form_submit_button("Sign in",
                                                   type="primary", width="stretch")
             if submitted:
                 # compare_digest, not ==: == short-circuits and leaks by timing.
@@ -249,7 +250,7 @@ def period_label(p: str) -> str:
 # --- header -----------------------------------------------------------------
 h = st.columns([3, 1.3, 1.6, 0.6], vertical_alignment="bottom")
 h[0].title("True Friend Dashboard")
-sel = h[2].selectbox(L("Reporting period", "งวดรายงาน"), list(reversed(periods)),
+sel = h[2].selectbox("Reporting period", list(reversed(periods)),
                      index=0, format_func=period_label, key="period",
                      help=L("A closed month shows its -Final snapshot. The month in "
                             "progress shows the newest working copy.",
@@ -276,9 +277,8 @@ region_rows = for_period(d["region"])
 regions_with_shops = [r for r in region_rows["region"]
                       if r != "Total" and region_rows.set_index("region").at[r, "n_shops"] > 0]
 sel_regions = h[1].multiselect(
-    L("Region", "ภูมิภาค"), regions_with_shops, default=[], key="regions",
-    placeholder=L(f"All regions ({len(regions_with_shops)})",
-                  f"ทุกภูมิภาค ({len(regions_with_shops)})")) or regions_with_shops
+    "Region", regions_with_shops, default=[], key="regions",
+    placeholder=f"All regions ({len(regions_with_shops)})") or regions_with_shops
 
 prov_v = province[province["region"].isin(sel_regions)]
 shop_v = shop[shop["zone"].isin(sel_regions)].copy()
@@ -331,35 +331,35 @@ def num(label: str, fmt: str = "localized", **kw):
 
 def growth_col():
     return st.column_config.NumberColumn(
-        L("GA growth", "การเติบโต GA"), format="percent",
+        "GA growth", format="percent",
         help=L("GA run-rate vs the Jan–Feb'26 baseline. Empty where there was no "
                "GA in Jan–Feb (no baseline).",
-               "GA RR เทียบฐาน ม.ค.–ก.พ. 69 · ว่างไว้หากไม่มียอด GA ใน ม.ค.–ก.พ. "
+               "GA run-rate เทียบฐาน ม.ค.–ก.พ. 69 · ว่างไว้หากไม่มียอด GA ใน ม.ค.–ก.พ. "
                "(ไม่มีฐาน)"))
 
 
 def ach_col():
     return st.column_config.ProgressColumn(
-        L("RR vs MOU", "RR เทียบ MOU"), format="percent", min_value=0,
+        "RR vs MOU", format="percent", min_value=0,
         max_value=1.5, color=T["series"][0],
         help=L("AP1D200 non-tourist run-rate ÷ monthly MOU target. Bar tops out "
                "at 150%.",
-               "AP1D200 RR ไม่รวมนักท่องเที่ยว ÷ เป้า MOU รายเดือน · แถบเต็มที่ 150%"))
+               "AP1D200 run-rate (ไม่รวม Tourist) ÷ MOU target รายเดือน · แถบเต็มที่ 150%"))
 
 
 def common_columns() -> dict:
     return {
-        "region": L("Region", "ภูมิภาค"), "zone": L("Region", "ภูมิภาค"),
-        "province": L("Province", "จังหวัด"), "province_label": L("Province", "จังหวัด"),
-        "n_shops": num(L("Shops", "จำนวนร้าน"), "%d"),
-        "base_ga": num(L("Baseline GA", "ฐาน GA")),
-        "ga": num(L("GA MTD", "GA สะสม")),
-        "rr_ga": num(L("GA run-rate", "GA RR")),
+        "region": "Region", "zone": "Region",
+        "province": "Province", "province_label": "Province",
+        "n_shops": num("Shops", "%d"),
+        "base_ga": num("Baseline GA"),
+        "ga": num("GA MTD"),
+        "rr_ga": num("GA run-rate"),
         "growth_pct": growth_col(),
-        "mou_baseline": num(L("AP1D200 baseline", "ฐาน AP1D200")),
-        "mou_target": num(L("MOU target", "เป้า MOU")),
-        "ap_nontourist": num(L("AP1D200 MTD", "AP1D200 สะสม")),
-        "aprr_nontourist": num(L("AP1D200 run-rate", "AP1D200 RR")),
+        "mou_baseline": num("AP1D200 baseline"),
+        "mou_target": num("MOU target"),
+        "ap_nontourist": num("AP1D200 MTD"),
+        "aprr_nontourist": num("AP1D200 run-rate"),
         "ach_mou": ach_col(),
     }
 
@@ -416,32 +416,32 @@ def tip(field: str, title: str, fmt: str | None = None):
 
 
 # --- tabs -------------------------------------------------------------------
-tabs = st.tabs([L("Overview", "ภาพรวม"), L("Province", "จังหวัด"),
-                L("Shop", "ร้านค้า"), L("Trend", "แนวโน้ม"),
-                L("Visibility", "การตกแต่งร้าน")])
+tabs = st.tabs(["Overview", "Province",
+                "Shop", "Trend",
+                "Visibility"])
 
 
 def render_overview() -> None:
     k = rollup(prov_v)
     c = st.columns(4)
-    c[0].metric(L("True Friend shops", "ร้าน True Friend"), f"{k['n_shops']:,.0f}",
+    c[0].metric("True Friend shops", f"{k['n_shops']:,.0f}",
                 help=L("Shops on the roster (Target Truefriend Submit 10).",
                        "ร้านค้าในรายชื่อ (Target Truefriend Submit 10)"))
     gap, mou = k["aprr_nontourist"] - k["mou_target"], k["mou_target"]
-    c[1].metric(L("AP1D200 non-tourist · RR vs MOU", "AP1D200 ไม่รวมนักท่องเที่ยว · RR เทียบ MOU"),
+    c[1].metric("AP1D200 non-tourist · RR vs MOU",
                 f"{k['ach_mou']:.0%}",
                 delta=L(f"{gap:+,.0f} vs target {mou:,.0f}", f"{gap:+,.0f} เทียบเป้า {mou:,.0f}"),
                 help=L(f"Run-rate {k['aprr_nontourist']:,.1f} ÷ MOU target {mou:,.0f}. "
                        f"Actual month-to-date {k['ap_nontourist']:,.0f}.",
-                       f"RR {k['aprr_nontourist']:,.1f} ÷ เป้า MOU {mou:,.0f} · "
+                       f"run-rate {k['aprr_nontourist']:,.1f} ÷ MOU target {mou:,.0f} · "
                        f"ยอดจริงสะสม {k['ap_nontourist']:,.0f}"))
-    c[2].metric(L("GA run-rate", "GA RR"), f"{k['rr_ga']:,.0f}",
+    c[2].metric("GA run-rate", f"{k['rr_ga']:,.0f}",
                 delta=(L(f"{k['growth_pct']:+.1%} vs Jan–Feb baseline",
                          f"{k['growth_pct']:+.1%} เทียบฐาน ม.ค.–ก.พ.") if k["base_ga"]
                        else L("no Jan–Feb baseline", "ไม่มีฐาน ม.ค.–ก.พ.")),
                 help=L(f"Baseline GA {k['base_ga']:,.1f} = (Jan'26 + Feb'26) ÷ 2.",
-                       f"ฐาน GA {k['base_ga']:,.1f} = (ม.ค. 69 + ก.พ. 69) ÷ 2"))
-    c[3].metric(L("GA month-to-date", "GA สะสมเดือนนี้"), f"{k['ga']:,.0f}",
+                       f"Baseline GA {k['base_ga']:,.1f} = (ม.ค. 69 + ก.พ. 69) ÷ 2"))
+    c[3].metric("GA month-to-date", f"{k['ga']:,.0f}",
                 help=L(f"Actual gross adds through day {de} of {dm}.",
                        f"ยอด GA จริงถึงวันที่ {de} จาก {dm}"))
 
@@ -449,29 +449,27 @@ def render_overview() -> None:
     cols = st.columns(2, gap="large")
     with cols[0]:
         st.altair_chart(hbar(reg, "region", "ach_mou",
-                             L("AP1D200 non-tourist run-rate vs MOU, by region",
-                               "AP1D200 ไม่รวมนักท่องเที่ยว: RR เทียบ MOU รายภูมิภาค"),
+                             "AP1D200 non-tourist run-rate vs MOU, by region",
                              target=1.0,
-                             tooltip=[tip("region:N", L("Region", "ภูมิภาค")),
-                                      tip("ach_mou:Q", L("RR vs MOU", "RR เทียบ MOU"), ".1%"),
-                                      tip("aprr_nontourist:Q", L("Run-rate", "RR"), ",.1f"),
-                                      tip("mou_target:Q", L("MOU target", "เป้า MOU"), ",.0f")]),
+                             tooltip=[tip("region:N", "Region"),
+                                      tip("ach_mou:Q", "RR vs MOU", ".1%"),
+                                      tip("aprr_nontourist:Q", "Run-rate", ",.1f"),
+                                      tip("mou_target:Q", "MOU target", ",.0f")]),
                         width="stretch")
         st.caption(L("Vertical rule = 100% of MOU.", "เส้นแนวตั้ง = 100% ของ MOU"))
     with cols[1]:
         st.altair_chart(hbar(reg, "region", "growth_pct",
-                             L("GA run-rate growth vs Jan–Feb baseline, by region",
-                               "การเติบโตของ GA RR เทียบฐาน ม.ค.–ก.พ. รายภูมิภาค"),
+                             "GA run-rate growth vs Jan–Feb baseline, by region",
                              diverging=True, fmt="+.0%",
-                             tooltip=[tip("region:N", L("Region", "ภูมิภาค")),
-                                      tip("growth_pct:Q", L("Growth", "การเติบโต"), "+.1%"),
-                                      tip("rr_ga:Q", L("GA run-rate", "GA RR"), ",.1f"),
-                                      tip("base_ga:Q", L("Baseline GA", "ฐาน GA"), ",.1f")]),
+                             tooltip=[tip("region:N", "Region"),
+                                      tip("growth_pct:Q", "Growth", "+.1%"),
+                                      tip("rr_ga:Q", "GA run-rate", ",.1f"),
+                                      tip("base_ga:Q", "Baseline GA", ",.1f")]),
                         width="stretch")
 
-    st.markdown(f"**{L('By region', 'แยกตามภูมิภาค')}**")
+    st.markdown("**By region**")
     total = rollup(reg)
-    total["region"] = L("Total", "รวม")
+    total["region"] = "Total"
     table = pd.concat([reg, total.to_frame().T], ignore_index=True)
     st.dataframe(
         for_table(table)[["region", "n_shops", "base_ga", "ga", "rr_ga", "growth_pct",
@@ -497,25 +495,24 @@ def render_province() -> None:
     cols = st.columns([1, 1], gap="large")
     with cols[0]:
         st.altair_chart(hbar(with_target, "province_label", "ach_mou",
-                             L("AP1D200 non-tourist run-rate vs MOU",
-                               "AP1D200 ไม่รวมนักท่องเที่ยว: RR เทียบ MOU"),
+                             "AP1D200 non-tourist run-rate vs MOU",
                              target=1.0, row_px=24,
-                             tooltip=[tip("province_label:N", L("Province", "จังหวัด")),
-                                      tip("region:N", L("Region", "ภูมิภาค")),
-                                      tip("ach_mou:Q", L("RR vs MOU", "RR เทียบ MOU"), ".1%"),
-                                      tip("aprr_nontourist:Q", L("Run-rate", "RR"), ",.1f"),
-                                      tip("mou_target:Q", L("MOU target", "เป้า MOU"), ",.0f")]),
+                             tooltip=[tip("province_label:N", "Province"),
+                                      tip("region:N", "Region"),
+                                      tip("ach_mou:Q", "RR vs MOU", ".1%"),
+                                      tip("aprr_nontourist:Q", "Run-rate", ",.1f"),
+                                      tip("mou_target:Q", "MOU target", ",.0f")]),
                         width="stretch")
     with cols[1]:
         st.altair_chart(hbar(p, "province_label", "growth_pct",
-                             L("GA run-rate growth vs baseline", "การเติบโตของ GA RR เทียบฐาน"),
+                             "GA run-rate growth vs baseline",
                              diverging=True, fmt="+.0%", row_px=24,
-                             tooltip=[tip("province_label:N", L("Province", "จังหวัด")),
-                                      tip("growth_pct:Q", L("Growth", "การเติบโต"), "+.1%"),
-                                      tip("rr_ga:Q", L("GA run-rate", "GA RR"), ",.1f"),
-                                      tip("base_ga:Q", L("Baseline GA", "ฐาน GA"), ",.1f")]),
+                             tooltip=[tip("province_label:N", "Province"),
+                                      tip("growth_pct:Q", "Growth", "+.1%"),
+                                      tip("rr_ga:Q", "GA run-rate", ",.1f"),
+                                      tip("base_ga:Q", "Baseline GA", ",.1f")]),
                         width="stretch")
-    st.markdown(f"**{L('By province', 'แยกตามจังหวัด')}**")
+    st.markdown("**By province**")
     st.dataframe(
         for_table(p).sort_values(["region", "ach_mou"], ascending=[True, False])[
             ["region", "province_label", "n_shops", "base_ga", "ga", "rr_ga",
@@ -523,29 +520,29 @@ def render_province() -> None:
              "ach_mou", "growth_mou", "rank_ach_mou"]],
         hide_index=True, width="stretch",
         column_config=common_columns() | {
-            "growth_mou": num(L("RR − AP1D200 baseline", "RR − ฐาน AP1D200")),
-            "rank_ach_mou": num(L("Rank", "อันดับ"), "%d",
+            "growth_mou": num("RR − AP1D200 baseline"),
+            "rank_ach_mou": num("Rank", "%d",
                                 help=L("By RR vs MOU, across all provinces with a target.",
-                                       "เรียงตาม RR เทียบ MOU ทุกจังหวัดที่มีเป้า"))})
+                                       "เรียงตาม RR vs MOU ทุกจังหวัดที่มี MOU target"))})
 
 
-FIELD_NAMES = {"growth_migrant": L("migrant growth", "การเติบโตกลุ่ม Migrant"),
-               "growth_mass": L("mass growth", "การเติบโตกลุ่ม Mass"),
-               "growth_tourist": L("tourist growth", "การเติบโตกลุ่ม Tourist"),
-               "ap_tourist": L("AP1D200 tourist", "AP1D200 นักท่องเที่ยว")}
+FIELD_NAMES = {"growth_migrant": "migrant growth",
+               "growth_mass": "mass growth",
+               "growth_tourist": "tourist growth",
+               "ap_tourist": "AP1D200 tourist"}
 
 
 def render_shop() -> None:
     f = st.columns([2, 2, 2])
     provs = sorted(shop_v["province"].unique())
-    sp = f[0].multiselect(L("Province", "จังหวัด"), provs, default=[], key="s_prov",
-                          placeholder=L(f"All ({len(provs)})", f"ทั้งหมด ({len(provs)})")) or provs
+    sp = f[0].multiselect("Province", provs, default=[], key="s_prov",
+                          placeholder=f"All ({len(provs)})") or provs
     vis = [v for v in VIS_ORDER if v in set(shop_v["visibility_label"])] + sorted(
         set(shop_v["visibility_label"]) - set(VIS_ORDER))
-    sv = f[1].multiselect(L("Visibility", "การตกแต่งร้าน"), vis, default=[], key="s_vis",
+    sv = f[1].multiselect("Visibility", vis, default=[], key="s_vis",
                           format_func=vis_label,
-                          placeholder=L(f"All ({len(vis)})", f"ทั้งหมด ({len(vis)})")) or vis
-    q = f[2].text_input(L("Search shop name or code", "ค้นหาชื่อร้านหรือรหัส"),
+                          placeholder=f"All ({len(vis)})") or vis
+    q = f[2].text_input("Search shop name or code",
                         key="s_q").strip().casefold()
     v = shop_v[shop_v["province"].isin(sp) & shop_v["visibility_label"].isin(sv)]
     if q:
@@ -556,10 +553,10 @@ def render_shop() -> None:
         return
     k = rollup(v.assign(n_shops=1))
     c = st.columns(3)
-    c[0].metric(L("Shops shown", "ร้านที่แสดง"), f"{len(v):,}")
-    c[1].metric(L("RR vs MOU", "RR เทียบ MOU"), f"{k['ach_mou']:.0%}",
+    c[0].metric("Shops shown", f"{len(v):,}")
+    c[1].metric("RR vs MOU", f"{k['ach_mou']:.0%}",
                 help=f"{k['aprr_nontourist']:,.1f} ÷ {k['mou_target']:,.0f}")
-    c[2].metric(L("GA growth vs baseline", "การเติบโต GA เทียบฐาน"),
+    c[2].metric("GA growth vs baseline",
                 f"{k['growth_pct']:+.1%}" if k["base_ga"] else "—",
                 help=None if k["base_ga"] else L("No GA in Jan–Feb'26, so no baseline.",
                                                   "ไม่มียอด GA ใน ม.ค.–ก.พ. 69 จึงไม่มีฐาน"))
@@ -577,11 +574,11 @@ def render_shop() -> None:
              "true_friend_code"]],
         hide_index=True, width="stretch", height=min(38 + 35 * len(v), 760),
         column_config=common_columns() | {
-            "shop_name": st.column_config.TextColumn(L("Shop", "ร้านค้า"), width="medium"),
-            "code": L("Combine code", "รหัสร้าน (Combine)"),
-            "visibility_display": L("Visibility", "การตกแต่งร้าน"),
-            "growth_mou": num(L("RR − baseline", "RR − ฐาน")),
-            "true_friend_code": L("True Friend code", "รหัส True Friend")})
+            "shop_name": st.column_config.TextColumn("Shop", width="medium"),
+            "code": "Combine code",
+            "visibility_display": "Visibility",
+            "growth_mou": num("RR − baseline"),
+            "true_friend_code": "True Friend code"})
     names = dict(zip(shop["code"], shop["shop_name"]))
     for c_ in (x for x in notes.get("recomputed_cells", []) if x["grid"] == "shop"):
         field = FIELD_NAMES.get(c_["field"], c_["field"])
@@ -597,18 +594,18 @@ def render_shop() -> None:
                      f"Excel: {c_['sheet']:,.1f}"))
 
 
-MEASURES = {"GA": ("ga", L("Gross adds", "ยอด GA")),
-            "AP1D200": ("ap200", L("AP1D200 activations", "AP1D200")),
-            "M1": ("m1", L("M1 revenue (THB)", "รายได้ M1 (บาท)"))}
+MEASURES = {"GA": ("ga", "Gross adds"),
+            "AP1D200": ("ap200", "AP1D200 activations"),
+            "M1": ("m1", "M1 revenue (THB)")}
 ALL_SHOPS = "__all__"
 
 
 def render_trend() -> None:
     f = st.columns([1.4, 1.3, 2.4])
     measure = f[0].segmented_control(
-        L("Measure", "ตัวชี้วัด"), list(MEASURES), default="GA", key="t_measure",
-        format_func=lambda k_: L("M1 revenue", "รายได้ M1") if k_ == "M1" else k_) or "GA"
-    roster_only = f[1].toggle(L("Current roster only", "เฉพาะร้านในรายชื่อปัจจุบัน"),
+        "Measure", list(MEASURES), default="GA", key="t_measure",
+        format_func=lambda k_: "M1 revenue" if k_ == "M1" else k_) or "GA"
+    roster_only = f[1].toggle("Current roster only",
                               value=True, key="t_roster",
                               help=L("Off includes shops that were in the programme "
                                      "earlier in the year and have since left.",
@@ -617,8 +614,8 @@ def render_trend() -> None:
     if roster_only:
         m = m[m["on_roster"]]
     shops = dict(sorted(zip(m["code"], m["shop_name"]), key=lambda kv: kv[1]))
-    pick = f[2].selectbox(L("Shop", "ร้านค้า"), [ALL_SHOPS] + list(shops), key="t_shop",
-                          format_func=lambda k_: L("All shops", "ทุกร้าน") if k_ == ALL_SHOPS
+    pick = f[2].selectbox("Shop", [ALL_SHOPS] + list(shops), key="t_shop",
+                          format_func=lambda k_: "All shops" if k_ == ALL_SHOPS
                           else f"{shops.get(k_, k_)} · {k_}")
     if pick != ALL_SHOPS:
         m = m[m["code"].eq(pick)]
@@ -630,7 +627,7 @@ def render_trend() -> None:
     long["seg_order"] = long["segment"].map({n: i for i, (_, n) in enumerate(SEGMENTS)})
     current = pm.get("period")
     long["month_label"] = long["month"].map(month_short)
-    long["month_axis"] = [f"{lbl} {L('(MTD)', '(สะสม)')}" if mo == current and not pm.get("is_final")
+    long["month_axis"] = [f"{lbl} (MTD)" if mo == current and not pm.get("is_final")
                           else lbl for mo, lbl in zip(long["month"], long["month_label"])]
     order = long.drop_duplicates("month").sort_values("month")["month_axis"].tolist()
     chart = (alt.Chart(long, height=340)
@@ -643,11 +640,10 @@ def render_trend() -> None:
                                      scale=alt.Scale(domain=[n for _, n in SEGMENTS],
                                                      range=T["series"])),
                      order=alt.Order("seg_order:Q"),
-                     tooltip=[tip("month_label:N", L("Month", "เดือน")),
-                              tip("segment:N", L("Segment", "กลุ่มลูกค้า")),
+                     tooltip=[tip("month_label:N", "Month"),
+                              tip("segment:N", "Segment"),
                               tip("value:Q", title, ",.0f")])
-             .properties(title=L(f"{title} by month, stacked by segment",
-                                 f"{title} รายเดือน แยกตามกลุ่มลูกค้า")))
+             .properties(title=f"{title} by month, stacked by segment"))
     totals = long.groupby("month_axis", as_index=False)["value"].sum()
     labels = (alt.Chart(totals).mark_text(dy=-6, color=T["secondary"], fontSize=11)
               .encode(x=alt.X("month_axis:N", sort=order), y="value:Q",
@@ -658,11 +654,11 @@ def render_trend() -> None:
                      f"not comparable with complete months.",
                      f"{month_short(current)} เป็นยอดสะสมถึงวันที่ {de} จาก {dm} "
                      f"ยังเทียบกับเดือนที่ครบแล้วไม่ได้"))
-    with st.expander(L("Table view", "มุมมองตาราง")):
+    with st.expander("Table view"):
         wide = long.pivot_table(index="segment", columns="month_axis", values="value",
                                 aggfunc="sum").reindex(columns=order)
-        wide.loc[L("Total", "รวม")] = wide.sum()
-        wide.index.name = L("Segment", "กลุ่มลูกค้า")
+        wide.loc["Total"] = wide.sum()
+        wide.index.name = "Segment"
         st.dataframe(wide, width="stretch",
                      column_config={c_: num(c_) for c_ in wide.columns})
 
@@ -694,22 +690,20 @@ def render_visibility() -> None:
         x=alt.X("month_label:N", sort=order, title=None, axis=alt.Axis(labelAngle=0)),
         y=alt.Y("per_shop:Q", title=None),
         color=alt.Color("group:N", title=None, scale=scale),
-        tooltip=[tip("month_label:N", L("Month", "เดือน")),
-                 tip("group:N", L("Visibility", "การตกแต่งร้าน")),
-                 tip("per_shop:Q", L("Per shop", "ต่อร้าน"), ",.1f"),
-                 tip("shops:Q", L("Shops", "จำนวนร้าน"))])
+        tooltip=[tip("month_label:N", "Month"),
+                 tip("group:N", "Visibility"),
+                 tip("per_shop:Q", "Per shop", ",.1f"),
+                 tip("shops:Q", "Shops")])
     lines = base.mark_line(strokeWidth=2)
     points = base.mark_point(filled=True, size=64, stroke=T["surface"], strokeWidth=2)
     st.altair_chart(style(alt.layer(lines, points).properties(
-        height=340, title=L("AP1D200 non-tourist per shop, by visibility status "
-                            "(complete months, current roster)",
-                            "AP1D200 ไม่รวมนักท่องเที่ยว ต่อร้าน แยกตามสถานะการตกแต่ง "
-                            "(เดือนที่ครบแล้ว · ร้านในรายชื่อปัจจุบัน)"))), width="stretch")
+        height=340, title="AP1D200 non-tourist per shop, by visibility status "
+                          "(complete months, current roster)")), width="stretch")
     st.caption(L("Groups are today's visibility status applied to every month, so a "
                  "shop decorated in August counts as “Decorated” in January too. The "
                  "table below separates before and after for each decorated shop.",
                  "กลุ่มใช้สถานะการตกแต่งปัจจุบันกับทุกเดือน ร้านที่ตกแต่งในเดือน ส.ค. "
-                 "จึงถูกนับเป็น “ตกแต่งแล้ว” ตั้งแต่ ม.ค. ด้วย ตารางด้านล่างแยกก่อนและ"
+                 "จึงถูกนับเป็น “Decorated” ตั้งแต่ ม.ค. ด้วย ตารางด้านล่างแยกก่อนและ"
                  "หลังตกแต่งของแต่ละร้าน"))
 
     dec = shop_v[shop_v["visibility_label"].eq("Decorated")][
@@ -725,28 +719,27 @@ def render_visibility() -> None:
         after = hist[hist["month"] >= when]["ap200_nontourist"] if when else pd.Series(dtype=float)
         rows.append({"shop_name": r.shop_name, "province": r.province,
                      "size": r.visibility_size,
-                     "decorated": month_long(when) if when else L("not recorded", "ไม่มีบันทึก"),
+                     "decorated": month_long(when) if when else "not recorded",
                      "before": before.mean() if len(before) else None,
                      "after": after.mean() if len(after) else None,
                      "n_after": len(after)})
     t = pd.DataFrame(rows)
     t["change"] = (t["after"] - t["before"]) / t["before"]
-    st.markdown("**" + L("Decorated shops · monthly AP1D200 non-tourist, before vs since decoration",
-                         "ร้านที่ตกแต่งแล้ว · AP1D200 ไม่รวมนักท่องเที่ยวรายเดือน ก่อนเทียบหลังตกแต่ง")
+    st.markdown("**" + "Decorated shops · monthly AP1D200 non-tourist, before vs since decoration"
                 + "**")
     st.dataframe(for_table(t).sort_values("change", ascending=False, na_position="last"),
                  hide_index=True, width="stretch",
-                 column_config={"shop_name": L("Shop", "ร้านค้า"),
-                                "province": L("Province", "จังหวัด"),
-                                "size": L("Size", "ขนาด"),
-                                "decorated": L("Decorated", "ตกแต่งเมื่อ"),
-                                "before": num(L("Avg / month before", "เฉลี่ย/เดือน ก่อน")),
-                                "after": num(L("Avg / month since", "เฉลี่ย/เดือน หลัง")),
-                                "n_after": num(L("Months since", "จำนวนเดือนหลัง"), "%d"),
-                                "change": num(L("Change", "เปลี่ยนแปลง"), "percent")})
+                 column_config={"shop_name": "Shop",
+                                "province": "Province",
+                                "size": "Size",
+                                "decorated": "Decorated",
+                                "before": num("Avg / month before"),
+                                "after": num("Avg / month since"),
+                                "n_after": num("Months since", "%d"),
+                                "change": num("Change", "percent")})
     st.caption(L("“Since” counts the decoration month itself and complete months after "
                  "it. Shops decorated in the report month have no complete month yet.",
-                 "“หลัง” นับรวมเดือนที่ตกแต่งและเดือนที่ครบหลังจากนั้น ร้านที่ตกแต่งใน"
+                 "“since” นับรวมเดือนที่ตกแต่งและเดือนที่ครบหลังจากนั้น ร้านที่ตกแต่งใน"
                  "เดือนที่รายงานยังไม่มีเดือนที่ครบ"))
 
 

@@ -90,7 +90,7 @@ formula, the stale pivot), a small ⓘ note on that page says so.
 | `src/metrics.py` | recomputes By Shop, Summary province and region grids, plus the monthly history |
 | `src/validate.py` | the gate: period, structure, lookups, coverage, reconciliation, roll-ups |
 | `src/build.py` | snapshot selection, supersession, parquet + meta.json |
-| `app.py` | Overview · Province · Shop · Trend · Visibility, in Thai (default) or English. Reads parquet only. Every visible string goes through `L(en, th)` |
+| `app.py` | Overview · Province · Shop · Trend · Visibility. Reads parquet only. TH (default) / EN: names (tabs, columns, metrics, chart titles, labels) stay English in both; only explanations (notes, help, messages) go through `L(en, th)` |
 | `admin.py` | local upload → build → commit → push page (`make admin`) |
 | `assets/` | logo and login background |
 | `web/` | the Cloudflare Pages masking shell (see above) |

@@ -83,13 +83,16 @@ def _login_background_css() -> str:
     im.save(buf, format="JPEG", quality=82)
     b64 = base64.b64encode(buf.getvalue()).decode()
     return f"""<style>
-    [data-testid="stApp"] {{
+    /* :has() ties the wallpaper to the login card itself. Streamlit can keep a
+       CSS-only st.html block alive into the next run, so a plain stApp rule
+       would linger behind the dashboard after sign-in; this one switches off
+       the instant the card leaves the page. */
+    [data-testid="stApp"]:has(.st-key-login_card) {{
         background: url("data:image/jpeg;base64,{b64}") center / cover fixed;
     }}
-    [data-testid="stHeader"] {{ background: transparent; }}
     .st-key-login_card {{
         background: #ffffff; color: #0b0b0b; border-radius: 16px;
-        padding: 2rem 2rem 1.5rem; margin-top: 12vh;
+        padding: 2rem 2rem 1.5rem; margin-top: 14vh;
         box-shadow: 0 12px 40px rgba(0,0,0,.25);
     }}
     .st-key-login_card p, .st-key-login_card label {{ color: #52514e; }}
@@ -108,29 +111,39 @@ def check_password() -> bool:
                  "Deployed: App settings → Secrets.")
         return False
 
-    st.html(_login_background_css())
+    # The login screen lives in one placeholder, emptied BEFORE st.rerun(): a
+    # rerun keeps showing the previous run's elements until new ones replace
+    # them, and the first authenticated run loads parquet before drawing
+    # anything. Emptying removes the card at once, and the wallpaper rule is
+    # keyed to the card (see _login_background_css).
+    gate = st.empty()
     valid = submitted = False
-    _, mid, _ = st.columns([1, 1.1, 1])
-    with mid, st.container(key="login_card"):
-        st.image(str(LOGO), width=140)
-        st.title("True Friend Dashboard")
-        st.caption("Retail partner performance · enter the password to continue.")
-        with st.form("login", border=False):
-            st.text_input("Password", type="password", key="_pw")
-            submitted = st.form_submit_button("Sign in", type="primary",
-                                              width="stretch")
-        if submitted:
-            # compare_digest, not ==: == short-circuits and leaks by timing.
-            valid = hmac.compare_digest(st.session_state["_pw"],
-                                        st.secrets["app_password"])
-            if not valid:
-                st.error("Incorrect password.")
+    with gate.container():
+        st.html(_login_background_css())
+        _, mid, _ = st.columns([1, 1.1, 1])
+        with mid, st.container(key="login_card"):
+            st.title("True Friend Dashboard")
+            st.caption("Retail partner performance · enter the password to continue.")
+            with st.form("login", border=False):
+                st.text_input("Password", type="password", key="_pw")
+                submitted = st.form_submit_button("Sign in", type="primary",
+                                                  width="stretch")
+            if submitted:
+                # compare_digest, not ==: == short-circuits and leaks by timing.
+                valid = hmac.compare_digest(st.session_state["_pw"],
+                                            st.secrets["app_password"])
+                if not valid:
+                    st.error("Incorrect password.")
     if submitted and valid:
+        gate.empty()
         st.session_state["auth_ok"] = True
         del st.session_state["_pw"]
         st.rerun()
     return False
 
+
+# The logo sits in the top-left header on every screen, login included.
+st.logo(str(LOGO), size="large")
 
 if not check_password():
     st.stop()
@@ -173,7 +186,6 @@ def period_label(p: str) -> str:
 
 
 # --- header -----------------------------------------------------------------
-st.logo(str(LOGO), size="large")
 h = st.columns([3, 1.4, 1.6], vertical_alignment="bottom")
 h[0].title("True Friend Dashboard")
 sel = h[2].selectbox("Reporting period", list(reversed(periods)), index=0,

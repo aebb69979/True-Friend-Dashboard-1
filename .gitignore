@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.streamlit/secrets.toml
+
+# Excel lock files. The source workbooks themselves under data/raw/ ARE
+# committed -- they are the reproducibility record that `make check` replays.
+~$*.xlsx

@@ -1,0 +1,540 @@
+{
+  "built_at": "2026-09-14T16:23:08+00:00",
+  "source_file": "Report True Friend V3.1 11-09-2026.xlsx",
+  "source_sha256": "29e836ac16bb82f5ed6fe23bc1fed83466d32ffca45231a6f31d2b0176bc136c",
+  "report_version": "3.1",
+  "period": "2026-09",
+  "month_label": "Sep'26",
+  "days_elapsed": 11,
+  "days_in_month": 30,
+  "layouts": {
+    "shop": "v3.1",
+    "province": "v3.1",
+    "region": "v3.1"
+  },
+  "sheets": [
+    "Data Current",
+    "Data Last",
+    "Summary",
+    "By Shop",
+    "Data Total",
+    "Code",
+    "Target Truefriend Submit 10",
+    "ตกแต่งแล้ว",
+    "INcentive",
+    "Pivot Base",
+    "Target Truefriend Submit 10 (2)",
+    "Sheet5"
+  ],
+  "months_in_data": [
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09"
+  ],
+  "baseline": {
+    "months": [
+      "Jan'26",
+      "Feb'26"
+    ],
+    "divisor": 2,
+    "phase_prefix": "Yes"
+  },
+  "n_shops": 61,
+  "n_provinces": 29,
+  "periods": {
+    "2026-08": {
+      "built_at": "2026-09-14T16:22:58+00:00",
+      "source_file": "Report True Friend V3.1 31-08-2026-Final.xlsx",
+      "source_sha256": "77964f64ece3360d22adcbaffcc5880a0459fdd84d2fece1485deef14b2f3459",
+      "report_version": "3.1",
+      "period": "2026-08",
+      "month_label": "Aug'26",
+      "days_elapsed": 26,
+      "days_in_month": 31,
+      "layouts": {
+        "shop": "v3.1",
+        "province": "v3.1",
+        "region": "v3.1"
+      },
+      "sheets": [
+        "Data Current",
+        "Data Last",
+        "Summary",
+        "By Shop",
+        "Data Total",
+        "Code",
+        "Target Truefriend Submit 10",
+        "ตกแต่งแล้ว",
+        "INcentive",
+        "Pivot Base",
+        "Target Truefriend Submit 10 (2)",
+        "Sheet5"
+      ],
+      "months_in_data": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08"
+      ],
+      "baseline": {
+        "months": [
+          "Jan'26",
+          "Feb'26"
+        ],
+        "divisor": 2,
+        "phase_prefix": "Yes"
+      },
+      "n_shops": 62,
+      "n_provinces": 29,
+      "is_final": true,
+      "validation": {
+        "failures": [],
+        "warnings": [
+          "-Final snapshot still projects: data through day 26 of 31, so run-rates are x1.192 of actuals.",
+          "27 Data Total number(s) stored as TEXT count as 0 in every SUMIFS and pivot: H7 (GA Mass='101'), H266 (GA Mass='47'), I266 (GA Migrant='40'), J266 (GA Tourist='0'), S267 (AP1D200='63'), S272 (AP1D200='157') ...",
+          "1 roster row(s) have a Combine Code but no Zone, so appear on no report row: row 67 71323941-17552017 แอน โมบาย",
+          "Report True Friend V3.1 31-08-2026-Final.xlsx is byte-identical to the last build of 2026-08.",
+          "shop: 3 cell(s) differ from the sheet for an identified reason and are published as recomputed: 78990187-17333513 growth_migrant: ours=15.0769 sheet=65.03846153846155 (V33 is =V32-U32; column is =R{r}-J{r}) | 78990187-17333513 growth_ga: ours=-119.1154 sheet=-69.15384615384613 (computed from growth_migrant: V33 is =V32-U32; column is =R{r}-J{r}) | 78990187-17333513 growth_pct: ours=-0.4079 sheet=-0.23682824025289773 (computed from growth_migrant: V33 is =V32-U32; column is =R{r}-J{r})"
+        ],
+        "notes": {
+          "text_numbers": [
+            [
+              "H7",
+              "GA Mass",
+              "101"
+            ],
+            [
+              "H266",
+              "GA Mass",
+              "47"
+            ],
+            [
+              "I266",
+              "GA Migrant",
+              "40"
+            ],
+            [
+              "J266",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "S267",
+              "AP1D200",
+              "63"
+            ],
+            [
+              "S272",
+              "AP1D200",
+              "157"
+            ],
+            [
+              "J278",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "R278",
+              "AP1D200 Tourist",
+              "0"
+            ],
+            [
+              "I294",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J294",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "J295",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "R295",
+              "AP1D200 Tourist",
+              "0"
+            ],
+            [
+              "I300",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J300",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "I305",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "S305",
+              "AP1D200",
+              "88"
+            ],
+            [
+              "J317",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "S329",
+              "AP1D200",
+              "155"
+            ],
+            [
+              "I346",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J346",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "I353",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J353",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "I364",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J364",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "S364",
+              "AP1D200",
+              "134"
+            ],
+            [
+              "I367",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J367",
+              "GA Tourist",
+              "0"
+            ]
+          ],
+          "recomputed_cells": [
+            {
+              "grid": "shop",
+              "key": "78990187-17333513",
+              "field": "growth_migrant",
+              "cell": "V33",
+              "sheet_formula": "=V32-U32",
+              "column_formula": "=R33-J33",
+              "ours": 15.07692307692308,
+              "sheet": 65.03846153846155
+            }
+          ],
+          "excused": {
+            "shop": [
+              "78990187-17333513 growth_migrant: ours=15.0769 sheet=65.03846153846155 (V33 is =V32-U32; column is =R{r}-J{r})",
+              "78990187-17333513 growth_ga: ours=-119.1154 sheet=-69.15384615384613 (computed from growth_migrant: V33 is =V32-U32; column is =R{r}-J{r})",
+              "78990187-17333513 growth_pct: ours=-0.4079 sheet=-0.23682824025289773 (computed from growth_migrant: V33 is =V32-U32; column is =R{r}-J{r})"
+            ]
+          },
+          "formula_deviations": {
+            "shop": [
+              "78990187-17333513 growth_migrant: V33 is =V32-U32; column is =R{r}-J{r}",
+              "79127470-17808036 ap_tourist: AD8 is None; column is =SUMIFS('Data Total'!$R:$R,'Data Total'!$D:$D,$F{r},'Data Total'!$A:$A,$M$2)"
+            ]
+          },
+          "summary_rank_scope": "Summary!AG ranks only rows 32:62"
+        }
+      }
+    },
+    "2026-09": {
+      "built_at": "2026-09-14T16:23:08+00:00",
+      "source_file": "Report True Friend V3.1 11-09-2026.xlsx",
+      "source_sha256": "29e836ac16bb82f5ed6fe23bc1fed83466d32ffca45231a6f31d2b0176bc136c",
+      "report_version": "3.1",
+      "period": "2026-09",
+      "month_label": "Sep'26",
+      "days_elapsed": 11,
+      "days_in_month": 30,
+      "layouts": {
+        "shop": "v3.1",
+        "province": "v3.1",
+        "region": "v3.1"
+      },
+      "sheets": [
+        "Data Current",
+        "Data Last",
+        "Summary",
+        "By Shop",
+        "Data Total",
+        "Code",
+        "Target Truefriend Submit 10",
+        "ตกแต่งแล้ว",
+        "INcentive",
+        "Pivot Base",
+        "Target Truefriend Submit 10 (2)",
+        "Sheet5"
+      ],
+      "months_in_data": [
+        "2026-01",
+        "2026-02",
+        "2026-03",
+        "2026-04",
+        "2026-05",
+        "2026-06",
+        "2026-07",
+        "2026-08",
+        "2026-09"
+      ],
+      "baseline": {
+        "months": [
+          "Jan'26",
+          "Feb'26"
+        ],
+        "divisor": 2,
+        "phase_prefix": "Yes"
+      },
+      "n_shops": 61,
+      "n_provinces": 29,
+      "is_final": false,
+      "validation": {
+        "failures": [],
+        "warnings": [
+          "27 Data Total number(s) stored as TEXT count as 0 in every SUMIFS and pivot: H7 (GA Mass='101'), H266 (GA Mass='47'), I266 (GA Migrant='40'), J266 (GA Tourist='0'), S267 (AP1D200='63'), S272 (AP1D200='157') ...",
+          "1 roster row(s) have a Combine Code but no Zone, so appear on no report row: row 66 71323941-17552017 แอน โมบาย",
+          "Report True Friend V3.1 11-09-2026.xlsx is byte-identical to the last build of 2026-09.",
+          "shop: 3 cell(s) differ from the sheet for an identified reason and are published as recomputed: 78990187-17333513 growth_migrant: ours=-40.5909 sheet=-44.45454545454545 (V38 is =V37-U37; column is =R{r}-J{r}) | 78990187-17333513 growth_ga: ours=-166.5455 sheet=-170.4090909090909 (computed from growth_migrant: V38 is =V37-U37; column is =R{r}-J{r}) | 78990187-17333513 growth_pct: ours=-0.5704 sheet=-0.5835927770859277 (computed from growth_migrant: V38 is =V37-U37; column is =R{r}-J{r})",
+          "province: 5 cell(s) differ from the sheet for an identified reason and are published as recomputed: UDON THANI, NONG BUA LAM PHU base_mass: ours=546.0000 sheet=722.0 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061) | UDON THANI, NONG BUA LAM PHU base_ga: ours=651.0000 sheet=827.0 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061) | UDON THANI, NONG BUA LAM PHU growth_mass: ours=214.9091 sheet=38.90909090909088 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061) | UDON THANI, NONG BUA LAM PHU growth_ga: ours=227.1818 sheet=51.18181818181816 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061) | UDON THANI, NONG BUA LAM PHU growth_pct: ours=0.3490 sheet=0.06188853468176319 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061)",
+          "region: 10 cell(s) differ from the sheet for an identified reason and are published as recomputed: NE-1 base_mass: ours=1,308.0000 sheet=1484.0 (stale Pivot Base baseline carried up from its province(s)) | NE-1 base_ga: ours=1,581.5000 sheet=1757.5 (stale Pivot Base baseline carried up from its province(s)) | NE-1 growth_mass: ours=1,261.0909 sheet=1085.090909090909 (stale Pivot Base baseline carried up from its province(s)) | NE-1 growth_ga: ours=1,355.7727 sheet=1179.7727272727275 (stale Pivot Base baseline carried up from its province(s)) | NE-1 growth_pct: ours=0.8573 sheet=0.6712789344368293 (stale Pivot Base baseline carried up from its province(s)) | Total base_mass: ours=10,215.5000 sheet=10391.5 (stale Pivot Base baseline carried up from its province(s)) ..."
+        ],
+        "notes": {
+          "text_numbers": [
+            [
+              "H7",
+              "GA Mass",
+              "101"
+            ],
+            [
+              "H266",
+              "GA Mass",
+              "47"
+            ],
+            [
+              "I266",
+              "GA Migrant",
+              "40"
+            ],
+            [
+              "J266",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "S267",
+              "AP1D200",
+              "63"
+            ],
+            [
+              "S272",
+              "AP1D200",
+              "157"
+            ],
+            [
+              "J278",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "R278",
+              "AP1D200 Tourist",
+              "0"
+            ],
+            [
+              "I294",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J294",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "J295",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "R295",
+              "AP1D200 Tourist",
+              "0"
+            ],
+            [
+              "I300",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J300",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "I305",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "S305",
+              "AP1D200",
+              "88"
+            ],
+            [
+              "J317",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "S329",
+              "AP1D200",
+              "155"
+            ],
+            [
+              "I346",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J346",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "I353",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J353",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "I364",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J364",
+              "GA Tourist",
+              "0"
+            ],
+            [
+              "S364",
+              "AP1D200",
+              "134"
+            ],
+            [
+              "I367",
+              "GA Migrant",
+              "0"
+            ],
+            [
+              "J367",
+              "GA Tourist",
+              "0"
+            ]
+          ],
+          "recomputed_cells": [
+            {
+              "grid": "shop",
+              "key": "78990187-17333513",
+              "field": "growth_migrant",
+              "cell": "V38",
+              "sheet_formula": "=V37-U37",
+              "column_formula": "=R38-J38",
+              "ours": -40.59090909090909,
+              "sheet": -44.45454545454545
+            }
+          ],
+          "excused": {
+            "shop": [
+              "78990187-17333513 growth_migrant: ours=-40.5909 sheet=-44.45454545454545 (V38 is =V37-U37; column is =R{r}-J{r})",
+              "78990187-17333513 growth_ga: ours=-166.5455 sheet=-170.4090909090909 (computed from growth_migrant: V38 is =V37-U37; column is =R{r}-J{r})",
+              "78990187-17333513 growth_pct: ours=-0.5704 sheet=-0.5835927770859277 (computed from growth_migrant: V38 is =V37-U37; column is =R{r}-J{r})"
+            ],
+            "province": [
+              "UDON THANI, NONG BUA LAM PHU base_mass: ours=546.0000 sheet=722.0 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061)",
+              "UDON THANI, NONG BUA LAM PHU base_ga: ours=651.0000 sheet=827.0 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061)",
+              "UDON THANI, NONG BUA LAM PHU growth_mass: ours=214.9091 sheet=38.90909090909088 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061)",
+              "UDON THANI, NONG BUA LAM PHU growth_ga: ours=227.1818 sheet=51.18181818181816 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061)",
+              "UDON THANI, NONG BUA LAM PHU growth_pct: ours=0.3490 sheet=0.06188853468176319 (Pivot Base not refreshed: sheet baseline still includes off-roster 79032307-17260061)"
+            ],
+            "region": [
+              "NE-1 base_mass: ours=1,308.0000 sheet=1484.0 (stale Pivot Base baseline carried up from its province(s))",
+              "NE-1 base_ga: ours=1,581.5000 sheet=1757.5 (stale Pivot Base baseline carried up from its province(s))",
+              "NE-1 growth_mass: ours=1,261.0909 sheet=1085.090909090909 (stale Pivot Base baseline carried up from its province(s))",
+              "NE-1 growth_ga: ours=1,355.7727 sheet=1179.7727272727275 (stale Pivot Base baseline carried up from its province(s))",
+              "NE-1 growth_pct: ours=0.8573 sheet=0.6712789344368293 (stale Pivot Base baseline carried up from its province(s))",
+              "Total base_mass: ours=10,215.5000 sheet=10391.5 (stale Pivot Base baseline carried up from its province(s))",
+              "Total base_ga: ours=14,333.0000 sheet=14509.0 (stale Pivot Base baseline carried up from its province(s))",
+              "Total growth_mass: ours=636.3182 sheet=460.31818181818176 (stale Pivot Base baseline carried up from its province(s))",
+              "Total growth_ga: ours=1,340.6364 sheet=1164.6363636363637 (stale Pivot Base baseline carried up from its province(s))",
+              "Total growth_pct: ours=0.0935 sheet=0.0802699265032989 (stale Pivot Base baseline carried up from its province(s))"
+            ]
+          },
+          "formula_deviations": {
+            "shop": [
+              "78990187-17333513 growth_migrant: V38 is =V37-U37; column is =R{r}-J{r}",
+              "79127470-17808036 ap_tourist: AD9 is None; column is =SUMIFS('Data Total'!$R:$R,'Data Total'!$D:$D,$F{r},'Data Total'!$A:$A,$M$2)"
+            ]
+          },
+          "stale_baseline": {
+            "udon thani, nong bua lam phu": {
+              "shops": [
+                "79032307-17260061"
+              ],
+              "sheet_minus_ours": [
+                176.0,
+                0.0,
+                0.0
+              ]
+            }
+          },
+          "summary_rank_scope": "Summary!AG ranks only rows 32:62"
+        }
+      }
+    }
+  },
+  "period_list": [
+    "2026-08",
+    "2026-09"
+  ],
+  "current_period": "2026-09"
+}

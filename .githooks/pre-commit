@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Rebuild before allowing a commit that stages new source data, so a build that
+# failed (or was never run) cannot reach data/processed/ -- and from there, a
+# push and an automatic redeploy. Enabled by `make setup`
+# (git config core.hooksPath .githooks).
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+staged() { git diff --cached --name-only | grep -qE "$1"; }
+
+if staged '^data/raw/'; then
+    echo "pre-commit: source data staged -- rebuilding before commit..."
+    if ! make build; then
+        echo
+        echo "pre-commit: BUILD FAILED -- commit blocked, nothing was committed."
+        echo "Fix the cause above, then 'git add' and commit again."
+        exit 1
+    fi
+    git add data/processed
+    echo "pre-commit: build OK, data/processed/ staged."
+fi

@@ -1,0 +1,5 @@
+openpyxl>=3.1
+pandas>=2.2
+pyarrow>=15
+streamlit>=1.61
+altair>=5.4

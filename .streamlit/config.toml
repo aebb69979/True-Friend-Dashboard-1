@@ -1,0 +1,14 @@
+# Brand red for interactive chrome (buttons, focus, selected tabs). Charts use
+# their own validated palette in app.py -- red in a chart reads as "critical".
+[theme]
+primaryColor = "#ec2127"
+
+[server]
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false
+
+[client]
+# Hide the developer toolbar (Deploy, rerun, settings) from viewers.
+toolbarMode = "viewer"

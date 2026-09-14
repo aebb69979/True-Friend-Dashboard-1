@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>True Friend Dashboard</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <style>
+    /*
+      Masking shell for true-friend-dashboard.pages.dev.
+
+      The dashboard runs on Streamlit Community Cloud, which only serves
+      *.streamlit.app. This page frames it with Streamlit's documented
+      ?embed=true mode, so the address bar keeps showing pages.dev. It holds
+      no data -- only the pointer below.
+
+      --badge-crop: Community Cloud draws a "Built with Streamlit" bar along
+      the bottom of an embedded app. It is cross-origin, so it cannot be
+      selected or styled away. Instead the frame is made this much TALLER than
+      the window and the page clips the overflow, pushing the bar out of view.
+      If a sliver of it ever reappears, raise this value.
+    */
+    :root { --badge-crop: 3rem; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #ffffff; }
+    iframe {
+      display: block; border: 0; width: 100vw;
+      height: calc(100vh + var(--badge-crop));
+      height: calc(100dvh + var(--badge-crop));   /* mobile URL bar */
+    }
+    .fallback { font: 14px system-ui, -apple-system, "Segoe UI", sans-serif;
+                padding: 16px; color: #52514e; }
+  </style>
+</head>
+<body>
+  <iframe
+    src="https://true-friend-dashboard.streamlit.app/?embed=true"
+    title="True Friend Dashboard"
+    allow="clipboard-read; clipboard-write; fullscreen"
+    referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  <noscript>
+    <p class="fallback">Open the dashboard directly:
+      <a href="https://true-friend-dashboard.streamlit.app/">true-friend-dashboard.streamlit.app</a></p>
+  </noscript>
+</body>
+</html>

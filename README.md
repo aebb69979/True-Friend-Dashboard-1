@@ -93,6 +93,39 @@ formula, the stale pivot), a small ⓘ note on that page says so.
 | `app.py` | Overview · Province · Shop · Trend · Visibility. Reads parquet only |
 | `admin.py` | local upload → build → commit → push page (`make admin`) |
 | `assets/` | logo and login background |
+| `web/` | the Cloudflare Pages masking shell (see above) |
+
+## The pages.dev address (masking shell)
+
+`web/index.html` is a single static file: a full-page `<iframe>` of
+`https://true-friend-dashboard.streamlit.app/?embed=true`, served by Cloudflare
+Pages at **true-friend-dashboard.pages.dev**. It's an iframe, not a redirect,
+so the address bar keeps showing `pages.dev` while Streamlit serves the app.
+`?embed=true` is Streamlit's documented embedding mode and only works because
+the Community Cloud app is public.
+
+**Why not a real custom domain:** Community Cloud only serves `*.streamlit.app`,
+so DNS pointed at it fails on SSL. Hence the shell.
+
+**Badge crop:** Community Cloud pins a "Built with Streamlit" bar to the bottom
+of an embedded app. It's cross-origin, so it can't be selected or styled away.
+The frame is `--badge-crop` (3rem) taller than the window, and the body clips
+the overflow. If a sliver of the bar reappears, raise `--badge-crop`.
+
+**Deploy (direct upload, deliberately not the Git integration):**
+
+```bash
+npx wrangler pages deploy web --project-name true-friend-dashboard --branch main
+```
+
+**The gotcha:** the repo copy of `web/index.html` and the deployed copy are
+**not linked**. Editing it and running `git push` changes nothing live until
+you run the deploy command again. Nothing warns you. The weekly data runbook
+needs no Cloudflare step: the shell holds no data, only the pointer.
+
+**Testing it:** headless Chrome renders the nested Community Cloud frame at 150px
+tall, so an automated screenshot looks broken. Check it in a normal browser
+window.
 
 ## Before deploying
 

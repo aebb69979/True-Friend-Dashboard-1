@@ -20,8 +20,9 @@ import pandas as pd
 from . import config as C
 from . import validate as V
 from .ingest import SchemaError, read_workbook
-from .metrics import (build_monthly, build_province, build_region, build_shop,
-                      report_month)
+from .metrics import (build_monthly, build_province, build_province_all,
+                      build_province_ph2, build_region, build_shop,
+                      build_shop_ph2, report_month)
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = ROOT / "data" / "raw"
@@ -83,6 +84,10 @@ def build_one(src_path: Path, is_final: bool) -> dict | None:
     print(f"report   {label} -> period {period} | data through day {de} of {dm}")
     print(f"feeds    Data Total {len(src.data):,} rows | roster "
           f"{len(src.target)} rows | layouts {src.layouts}")
+    if src.ph2 is not None:
+        print(f"phase 2  Data Total PH2 {len(src.ph2.data):,} rows | roster "
+              f"{len(src.ph2.target)} rows | By Shop Ph2 "
+              f"{len(src.ph2.shop_sheet)} shops")
 
     meta = {
         "built_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -100,13 +105,22 @@ def build_one(src_path: Path, is_final: bool) -> dict | None:
         "baseline": {"months": list(C.BASELINE_MONTHS),
                      "divisor": C.BASELINE_DIVISOR,
                      "phase_prefix": C.BASELINE_PHASE_PREFIX},
+        "has_ph2": src.ph2 is not None,
     }
 
+    ph2 = None
     try:
         shop = build_shop(src)
         province = build_province(src)
         region = build_region(province)
         monthly = build_monthly(src)
+        if src.ph2 is not None:
+            ph2 = {"shop_ph2": build_shop_ph2(src)}
+            ph2["province_ph2"] = build_province_ph2(src, ph2["shop_ph2"])
+            ph2["region_ph2"] = build_region(ph2["province_ph2"])
+            ph2["province_all"] = build_province_all(src, province,
+                                                     ph2["province_ph2"])
+            ph2["region_all"] = build_region(ph2["province_all"])
     except (KeyError, ValueError, TypeError) as exc:
         # Arithmetic on a malformed period (e.g. day counts that are text)
         # is reported by the period check below; do not publish either way.
@@ -118,6 +132,8 @@ def build_one(src_path: Path, is_final: bool) -> dict | None:
     meta.update({"n_shops": int(len(shop)) if shop is not None else None,
                  "n_provinces": int((province["n_shops"] > 0).sum())
                  if province is not None else None})
+    if ph2 is not None:
+        meta["n_shops_ph2"] = int(len(ph2["shop_ph2"]))
 
     print("\nvalidation")
     if shop is None:
@@ -127,7 +143,7 @@ def build_one(src_path: Path, is_final: bool) -> dict | None:
         recon = pd.DataFrame()
     else:
         rep, recon = V.run_all(src, meta, META_PATH, is_final, shop, province,
-                               region)
+                               region, ph2)
     print(rep.render())
 
     if not recon.empty:
@@ -135,9 +151,15 @@ def build_one(src_path: Path, is_final: bool) -> dict | None:
               "(fields with any difference)")
         show = recon[(recon["max_abs_diff"] > 0) | (recon["n_mismatch"] > 0)
                      | (recon["n_excused"] > 0)]
-        cells = {g: len(src.shop_sheet if g == "shop" else src.province_sheet
-                        if g == "province" else src.region_sheet)
-                 for g in recon["grid"].unique()}
+        sheets = {"shop": src.shop_sheet, "province": src.province_sheet,
+                  "region": src.region_sheet}
+        if src.ph2 is not None:
+            p2 = src.ph2
+            sheets |= {"shop_ph2": p2.shop_sheet, "province_ph2": p2.province_sheet,
+                       "region_ph2": p2.region_sheet,
+                       "province_all": p2.all_province_sheet,
+                       "region_all": p2.all_region_sheet}
+        cells = {g: len(sheets[g]) for g in recon["grid"].unique()}
         print("  rows compared: " + ", ".join(f"{g} {n}" for g, n in cells.items())
               + f" | fields each: {recon.groupby('grid').size().max()}")
         if show.empty:
@@ -147,9 +169,28 @@ def build_one(src_path: Path, is_final: bool) -> dict | None:
                 print(show.to_string(index=False,
                                      float_format=lambda v: f"{v:,.6g}"))
 
+    if shop is not None:
+        shop, province, region = _with_ph2(shop, province, region, ph2)
     return {"src": src_path, "period": period, "is_final": is_final,
             "shop": shop, "province": province, "region": region,
             "monthly": monthly, "meta": meta, "rep": rep}
+
+
+def _with_ph2(shop, province, region, ph2):
+    """Shops of both phases in one table (`program_phase`); province and
+    region rows once per `scope` -- ph1, ph2, and all. A Phase 1-only snapshot
+    publishes ph1 and an identical `all`, so the app never special-cases it."""
+    def scoped(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        return pd.concat([f.assign(scope=k) for k, f in frames.items()],
+                         ignore_index=True)
+    if ph2 is None:
+        return (shop, scoped({"ph1": province, "all": province}),
+                scoped({"ph1": region, "all": region}))
+    return (pd.concat([shop, ph2["shop_ph2"]], ignore_index=True),
+            scoped({"ph1": province, "ph2": ph2["province_ph2"],
+                    "all": ph2["province_all"]}),
+            scoped({"ph1": region, "ph2": ph2["region_ph2"],
+                    "all": ph2["region_all"]}))
 
 
 def _tag(df: pd.DataFrame, period: str, is_final: bool) -> pd.DataFrame:

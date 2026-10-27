@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-10-21T13:38:29+00:00",
+  "built_at": "2026-10-27T12:12:17+00:00",
   "source_file": "Report True Friend V3.1 21-10-2026.xlsx",
   "source_sha256": "08c54a4efa75a4ffc23965d3c1edd61024b3d12afeaf3b367202a6223177c976",
   "report_version": "3.1",
@@ -10,7 +10,12 @@
   "layouts": {
     "shop": "v3.1",
     "province": "v3.1",
-    "region": "v3.1"
+    "region": "v3.1",
+    "shop_ph2": "ph2.v1",
+    "province_ph2": "ph2.v1",
+    "region_ph2": "ph2.v1",
+    "province_all": "all.v1",
+    "region_all": "all.v1"
   },
   "sheets": [
     "Data Current",
@@ -51,11 +56,13 @@
     "divisor": 2,
     "phase_prefix": "Yes"
   },
+  "has_ph2": true,
   "n_shops": 59,
   "n_provinces": 28,
+  "n_shops_ph2": 22,
   "periods": {
     "2026-08": {
-      "built_at": "2026-10-21T13:38:17+00:00",
+      "built_at": "2026-10-27T12:11:57+00:00",
       "source_file": "Report True Friend V3.1 31-08-2026-Final.xlsx",
       "source_sha256": "77964f64ece3360d22adcbaffcc5880a0459fdd84d2fece1485deef14b2f3459",
       "report_version": "3.1",
@@ -100,6 +107,7 @@
         "divisor": 2,
         "phase_prefix": "Yes"
       },
+      "has_ph2": false,
       "n_shops": 62,
       "n_provinces": 29,
       "is_final": true,
@@ -282,7 +290,7 @@
       }
     },
     "2026-10": {
-      "built_at": "2026-10-21T13:38:29+00:00",
+      "built_at": "2026-10-27T12:12:17+00:00",
       "source_file": "Report True Friend V3.1 21-10-2026.xlsx",
       "source_sha256": "08c54a4efa75a4ffc23965d3c1edd61024b3d12afeaf3b367202a6223177c976",
       "report_version": "3.1",
@@ -293,7 +301,12 @@
       "layouts": {
         "shop": "v3.1",
         "province": "v3.1",
-        "region": "v3.1"
+        "region": "v3.1",
+        "shop_ph2": "ph2.v1",
+        "province_ph2": "ph2.v1",
+        "region_ph2": "ph2.v1",
+        "province_all": "all.v1",
+        "region_all": "all.v1"
       },
       "sheets": [
         "Data Current",
@@ -334,8 +347,10 @@
         "divisor": 2,
         "phase_prefix": "Yes"
       },
+      "has_ph2": true,
       "n_shops": 59,
       "n_provinces": 28,
+      "n_shops_ph2": 22,
       "is_final": false,
       "validation": {
         "failures": [],
@@ -343,7 +358,10 @@
           "27 Data Total number(s) stored as TEXT count as 0 in every SUMIFS and pivot: H7 (GA Mass='101'), H266 (GA Mass='47'), I266 (GA Migrant='40'), J266 (GA Tourist='0'), S267 (AP1D200='63'), S272 (AP1D200='157') ...",
           "1 roster row(s) have a Combine Code but no Zone, so appear on no report row: row 64 71323941-17552017 แอน โมบาย",
           "Report True Friend V3.1 21-10-2026.xlsx is byte-identical to the last build of 2026-10.",
-          "shop: 3 cell(s) differ from the sheet for an identified reason and are published as recomputed: 78990187-17333513 growth_migrant: ours=63.1667 sheet=15.86666666666666 (V36 is =V35-U35; column is =R{r}-J{r}) | 78990187-17333513 growth_ga: ours=-112.2000 sheet=-159.5 (computed from growth_migrant: V36 is =V35-U35; column is =R{r}-J{r}) | 78990187-17333513 growth_pct: ours=-0.3842 sheet=-0.5462328767123288 (computed from growth_migrant: V36 is =V35-U35; column is =R{r}-J{r})"
+          "shop: 3 cell(s) differ from the sheet for an identified reason and are published as recomputed: 78990187-17333513 growth_migrant: ours=63.1667 sheet=15.86666666666666 (V36 is =V35-U35; column is =R{r}-J{r}) | 78990187-17333513 growth_ga: ours=-112.2000 sheet=-159.5 (computed from growth_migrant: V36 is =V35-U35; column is =R{r}-J{r}) | 78990187-17333513 growth_pct: ours=-0.3842 sheet=-0.5462328767123288 (computed from growth_migrant: V36 is =V35-U35; column is =R{r}-J{r})",
+          "Phase 2 MOU baseline is read from Target Truefriend PH2 column 'AVG AP1D200' (what By Shop Ph2!Z sums) and published as AP1D250. Rename the header to 'AVG AP1D250' once confirmed.",
+          "Phase 2 GA baselines for 22 shop(s) are typed values in By Shop Ph2!I:K. The months they average are not in the workbook, so they are published as given, unverified.",
+          "1 By Shop Ph2 shop(s) have no Oct'26 row in Data Total PH2 (shown as zero): ['79521257-17336558']"
         ],
         "notes": {
           "text_numbers": [
@@ -508,7 +526,8 @@
               "79127470-17808036 ap_tourist: AD9 is None; column is =SUMIFS('Data Total'!$R:$R,'Data Total'!$D:$D,$F{r},'Data Total'!$A:$A,$M$2)"
             ]
           },
-          "summary_rank_scope": "Summary!AG ranks only rows 32:62"
+          "summary_rank_scope": "Summary!AG ranks only rows 32:62",
+          "ph2_baseline": "typed in By Shop Ph2!I:K; source period unknown"
         }
       }
     }

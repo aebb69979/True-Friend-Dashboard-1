@@ -72,6 +72,27 @@ def month_key(label: str) -> str | None:
 
 
 @dataclass
+class Ph2Source:
+    """Phase 2, from Oct'26: its own feed, roster and grids, plus the PH1+PH2
+    roll-up. By Shop Ph2 is part feed -- zone, province and the GA baseline
+    are typed there and nowhere else."""
+
+    data: pd.DataFrame            # Data Total PH2
+    target: pd.DataFrame          # Target Truefriend PH2
+    shop_sheet: pd.DataFrame      # By Shop Ph2
+    province_sheet: pd.DataFrame  # Summary Ph2 province grid
+    region_sheet: pd.DataFrame    # Summary Ph2 region block
+    all_province_sheet: pd.DataFrame  # "Summary " (PH1+PH2) province grid
+    all_region_sheet: pd.DataFrame    # "Summary " region block
+    shop_control: dict
+    control: dict                 # Summary Ph2's A1 / A2 / H16
+    all_control: dict             # "Summary "'s
+    baseline_header: str          # which TARGET_PH2_BASELINE_HEADERS bound
+    sheet_names: dict[str, str]   # role -> actual sheet name
+    text_numbers: list[tuple[str, str, str]] = field(default_factory=list)
+
+
+@dataclass
 class Source:
     """Everything the build needs, already extracted from the .xlsx."""
 
@@ -91,17 +112,26 @@ class Source:
     # Numbers stored as text in Data Total: [(cell, header, text)].
     text_numbers: list[tuple[str, str, str]] = field(default_factory=list)
     missing_optional: list[str] = field(default_factory=list)
+    ph2: Ph2Source | None = None  # None: a Phase 1-only snapshot
 
 
 # --- sheet resolution -------------------------------------------------------
 
 
-def _resolve(names: list[str], wanted: str, path: Path) -> str:
+def _resolve(names: list[str], wanted: str | tuple[str, ...], path: Path) -> str:
     """The actual sheet name for `wanted`, matched on the TRIMMED name.
 
     A stray trailing space from Excel's rename box is a typo, never a second
     sheet; two sheets that trim to the same name are a coin flip, so they raise.
+    A tuple is a list of candidates, newest name first; the first present wins.
     """
+    if isinstance(wanted, tuple):
+        trimmed = {n.strip() for n in names}
+        hit = next((w for w in wanted if w.strip() in trimmed), None)
+        if hit is None:
+            raise SchemaError(f"{path.name}: none of the sheets {list(wanted)} "
+                              f"is present. Sheets present: {names}")
+        return _resolve(names, hit, path)
     if wanted.strip() in {n.strip() for n in C.FORBIDDEN_SOURCE_SHEETS}:
         raise SchemaError(f"{wanted!r} is on FORBIDDEN_SOURCE_SHEETS.")
     found = [n for n in names if n.strip() == wanted.strip()]
@@ -147,12 +177,15 @@ def _header_index(header_row: list, label: str, wanted: dict[str, str],
     return idx, missing_optional
 
 
-def read_data_total(grid: list[list], label: str
+def read_data_total(grid: list[list], label: str, cols: dict[str, str] = C.DATA_COLS,
+                    numeric: tuple[str, ...] = C.DATA_NUMERIC,
+                    text: tuple[str, ...] = C.DATA_TEXT
                     ) -> tuple[pd.DataFrame, list[tuple[str, str, str]]]:
+    """A monthly feed. Phase 2's has its own header names, passed in."""
     if not grid:
         raise SchemaError(f"{label}: sheet is empty.")
-    idx, _ = _header_index(grid[0], label, C.DATA_COLS)
-    out_to_src = {v: k for k, v in C.DATA_COLS.items()}
+    idx, _ = _header_index(grid[0], label, cols)
+    out_to_src = {v: k for k, v in cols.items()}
     rows, text_numbers = [], []
     for r, raw in enumerate(grid[1:], start=2):
         if raw is None or all(v is None for v in raw):
@@ -160,7 +193,7 @@ def read_data_total(grid: list[list], label: str
         rec = {"xl_row": r}
         for out, i in idx.items():
             v = raw[i] if i < len(raw) else None
-            if out in C.DATA_NUMERIC:
+            if out in numeric:
                 if _is_number(v):
                     rec[out] = float(v)
                 else:
@@ -171,16 +204,40 @@ def read_data_total(grid: list[list], label: str
                         text_numbers.append((f"{idx_to_col(i)}{r}",
                                              out_to_src[out], norm(v)))
                     rec[out] = 0.0
-            elif out in C.DATA_TEXT:
+            elif out in text:
                 rec[out] = norm(v)
             else:
                 rec[out] = None if v is None else norm(v)
         if not rec["month_label"] and not rec["code"]:
             continue
         rows.append(rec)
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows, columns=["xl_row", *idx])
     df["month"] = df["month_label"].map(month_key)
     return df, text_numbers
+
+
+def read_target_ph2(grid: list[list], label: str) -> tuple[pd.DataFrame, str]:
+    """The Phase 2 roster. Returns it and the baseline header that bound."""
+    header = grid[C.TARGET_PH2_HEADER_ROW - 1] if grid else []
+    present = {norm(v) for v in header if v is not None}
+    base = next((h for h in C.TARGET_PH2_BASELINE_HEADERS if h in present), None)
+    if base is None:
+        raise SchemaError(f"{label}: none of the baseline headers "
+                          f"{list(C.TARGET_PH2_BASELINE_HEADERS)} found.\n"
+                          f"  Present: {sorted(present)}")
+    idx, _ = _header_index(header, label, C.TARGET_PH2_COLS | {base: "mou_baseline"})
+    rows = []
+    for r, raw in enumerate(grid[C.TARGET_PH2_HEADER_ROW:],
+                            start=C.TARGET_PH2_HEADER_ROW + 1):
+        rec = {"xl_row": r}
+        for out, i in idx.items():
+            v = raw[i] if i < len(raw) else None
+            rec[out] = ((float(v) if _is_number(v) else 0.0)
+                        if out in C.TARGET_PH2_NUMERIC else norm(v))
+        if rec.get("code", "").strip("- ") == "":
+            continue
+        rows.append(rec)
+    return pd.DataFrame(rows, columns=["xl_row", *idx]), base
 
 
 def read_target(grid: list[list], label: str) -> tuple[pd.DataFrame, list[str]]:
@@ -273,7 +330,7 @@ def formula_deviations(fgrid: list[list], label: str, lay: C.GridLayout,
     """
     out = {}
     for name, (col, _g, _e) in lay.fields.items():
-        if name not in C.RECONCILE_FIELDS:
+        if name not in C.RECONCILE_FIELDS or name in lay.inputs:
             continue
         shapes: dict[str, list[int]] = {}
         for r in keys:
@@ -315,6 +372,9 @@ def read_workbook(path: str | Path) -> Source:
         data, text_numbers = read_data_total(_grid(wb[s_data]), s_data)
         target, missing = read_target(_grid(wb[s_target]), s_target)
         g_summary, g_shop = _grid(wb[s_summary]), _grid(wb[s_shop])
+        ph2_names = _resolve_ph2(names, path)
+        if ph2_names:
+            ph2_grids = {k: _grid(wb[n]) for k, n in ph2_names.items()}
     finally:
         wb.close()
 
@@ -330,6 +390,8 @@ def read_workbook(path: str | Path) -> Source:
         f_shop, f_summary = _grid(wbf[s_shop]), _grid(wbf[s_summary])
     finally:
         wbf.close()
+    layouts = {"shop": lay_shop.name, "province": lay_prov.name,
+               "region": lay_reg.name}
     deviations = {}
     deviations.update(formula_deviations(
         f_shop, "shop", lay_shop, dict(zip(shop["xl_row"], shop["code"]))))
@@ -337,12 +399,75 @@ def read_workbook(path: str | Path) -> Source:
         f_summary, "province", lay_prov,
         dict(zip(prov["xl_row"], prov["province"]))))
 
+    ph2 = None
+    if ph2_names:
+        ph2, lays_ph2 = _read_ph2(path, ph2_names, ph2_grids, deviations)
+        layouts |= lays_ph2
+
     return Source(
         path=path, sheet_names=names, data=data, target=target,
         shop_sheet=shop, province_sheet=prov, region_sheet=region,
         control=control, shop_control=shop_control,
-        layouts={"shop": lay_shop.name, "province": lay_prov.name,
-                 "region": lay_reg.name},
-        deviations=deviations, text_numbers=text_numbers,
-        missing_optional=missing,
+        layouts=layouts, deviations=deviations, text_numbers=text_numbers,
+        missing_optional=missing, ph2=ph2,
     )
+
+
+def _resolve_ph2(names: list[str], path: Path) -> dict[str, str]:
+    """Role -> sheet name for Phase 2, or {} for a Phase 1-only snapshot."""
+    trimmed = {n.strip() for n in names}
+    present = [s for s in C.PH2_SHEETS if s in trimmed]
+    if not present:
+        return {}
+    if missing := [s for s in C.PH2_SHEETS if s not in trimmed]:
+        raise SchemaError(f"{path.name}: Phase 2 sheet(s) {missing} missing while "
+                          f"{present} are present -- a half-built Phase 2 cannot "
+                          f"be reconciled.")
+    roles = {"data": C.SHEET_DATA_PH2, "target": C.SHEET_TARGET_PH2,
+             "shop": C.SHEET_SHOP_PH2, "summary": C.SHEET_SUMMARY_PH2,
+             "summary_all": C.SHEET_SUMMARY_ALL}
+    return {k: _resolve(names, v, path) for k, v in roles.items()}
+
+
+def _read_ph2(path: Path, names: dict[str, str], grids: dict[str, list[list]],
+              deviations: dict) -> tuple[Ph2Source, dict[str, str]]:
+    data, text_numbers = read_data_total(grids["data"], names["data"],
+                                         C.DATA_PH2_COLS, C.DATA_PH2_NUMERIC,
+                                         C.DATA_PH2_TEXT)
+    target, base_header = read_target_ph2(grids["target"], names["target"])
+    shop, shop_control, l_shop = read_grid(grids["shop"], names["shop"],
+                                           C.SHOP_PH2_LAYOUTS)
+    prov, control, l_prov = read_grid(grids["summary"], f"{names['summary']} (province)",
+                                      C.SUMMARY_PH2_PROVINCE_LAYOUTS)
+    region, _, l_reg = read_grid(grids["summary"], f"{names['summary']} (region)",
+                                 C.SUMMARY_PH2_REGION_LAYOUTS)
+    aprov, all_control, l_aprov = read_grid(
+        grids["summary_all"], f"{names['summary_all']!r} (province)",
+        C.SUMMARY_ALL_PROVINCE_LAYOUTS)
+    aregion, _, l_areg = read_grid(
+        grids["summary_all"], f"{names['summary_all']!r} (region)",
+        C.SUMMARY_ALL_REGION_LAYOUTS)
+
+    wbf = load_workbook(path, data_only=False, read_only=True)
+    try:
+        f = {k: _grid(wbf[names[k]]) for k in ("shop", "summary", "summary_all")}
+    finally:
+        wbf.close()
+    deviations.update(formula_deviations(
+        f["shop"], "shop_ph2", l_shop, dict(zip(shop["xl_row"], shop["code"]))))
+    deviations.update(formula_deviations(
+        f["summary"], "province_ph2", l_prov,
+        dict(zip(prov["xl_row"], prov["province"]))))
+    deviations.update(formula_deviations(
+        f["summary_all"], "province_all", l_aprov,
+        dict(zip(aprov["xl_row"], aprov["province"]))))
+
+    return Ph2Source(
+        data=data, target=target, shop_sheet=shop, province_sheet=prov,
+        region_sheet=region, all_province_sheet=aprov, all_region_sheet=aregion,
+        shop_control=shop_control, control=control, all_control=all_control,
+        baseline_header=base_header, sheet_names=names,
+        text_numbers=text_numbers,
+    ), {"shop_ph2": l_shop.name, "province_ph2": l_prov.name,
+        "region_ph2": l_reg.name, "province_all": l_aprov.name,
+        "region_all": l_areg.name}

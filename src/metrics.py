@@ -16,6 +16,12 @@ mirrored deliberately, oddities included:
   * GA totals are the SUM of the three segments. Data Total's own "GA" column
     is not used by any report formula (and does not always equal the sum).
 
+Phase 2 (By Shop Ph2 / Summary Ph2) uses the same GA arithmetic, but its MOU
+measure is AP1D250 non-tourist as ONE column -- there is no Mass / migrant /
+tourist split, so its run-rate is computed from the total. Its GA baseline is
+typed on By Shop Ph2 and taken as given. The PH1+PH2 "Summary " adds the two
+phases' province rows, AP1D200 and AP1D250 alike.
+
 Two places deliberately DO NOT mirror the sheet, each warned about by the
 build rather than hidden:
 
@@ -90,20 +96,26 @@ def _metrics(frame: pd.DataFrame, days_elapsed: float, days_in_month: float
     """The 29-column block, given base_*, ga_*, ap_*, mou_* already filled.
 
     One implementation for shops and provinces, as the sheet uses one set of
-    formulas for both.
+    formulas for both. A frame without ap_mass (Phase 2, PH1+PH2) carries
+    ap_nontourist directly and gets the short block.
     """
     f = frame
+    split = "ap_mass" in f
     f["base_ga"] = f["base_mass"] + f["base_migrant"] + f["base_tourist"]
     f["ga"] = f["ga_mass"] + f["ga_migrant"] + f["ga_tourist"]
     for s in SEG:
         f[f"rr_{s}"] = f[f"ga_{s}"] / days_elapsed * days_in_month
         f[f"growth_{s}"] = f[f"rr_{s}"] - f[f"base_{s}"]
-        f[f"aprr_{s}"] = f[f"ap_{s}"] / days_elapsed * days_in_month
+        if split:
+            f[f"aprr_{s}"] = f[f"ap_{s}"] / days_elapsed * days_in_month
     f["rr_ga"] = f["rr_mass"] + f["rr_migrant"] + f["rr_tourist"]
     f["growth_ga"] = f["growth_mass"] + f["growth_migrant"] + f["growth_tourist"]
     f["growth_pct"] = safe_div(f["growth_ga"], f["base_ga"])
-    f["ap_nontourist"] = f["ap_mass"] + f["ap_migrant"]
-    f["aprr_nontourist"] = f["aprr_mass"] + f["aprr_migrant"]
+    if split:
+        f["ap_nontourist"] = f["ap_mass"] + f["ap_migrant"]
+        f["aprr_nontourist"] = f["aprr_mass"] + f["aprr_migrant"]
+    else:
+        f["aprr_nontourist"] = f["ap_nontourist"] / days_elapsed * days_in_month
     f["ach_mou"] = safe_div(f["aprr_nontourist"], f["mou_target"])
     f["growth_mou"] = f["aprr_nontourist"] - f["mou_baseline"]
     return f
@@ -160,6 +172,65 @@ def build_shop(src: Source) -> pd.DataFrame:
     out = _metrics(out, de, dm)
     out["visibility_label"] = out["visibility"].map(C.VISIBILITY_LABELS).fillna(
         out["visibility"].replace("", "Not set"))
+    out["program_phase"] = 1
+    return out.drop(columns="code_key")
+
+
+def ph2_current(src: Source) -> pd.DataFrame:
+    """Data Total PH2 rows for the report month, keyed like the roster."""
+    label, _ = report_month(src)
+    d = src.ph2.data
+    d = d.assign(code_key=d["code"].map(fold))
+    return d[d["month_label"].map(fold) == fold(label)]
+
+
+def build_shop_ph2(src: Source) -> pd.DataFrame:
+    """One row per By Shop Ph2 shop.
+
+    The shop list, zone, province and GA baseline are By Shop Ph2's own typed
+    cells -- nothing else in the workbook holds them. Actuals come from Data
+    Total PH2 for the report month; MOU baseline and target from the Phase 2
+    roster by code, as By Shop Ph2!Z:AA SUMIFS them.
+    """
+    de = float(src.control["days_elapsed"])
+    dm = float(src.control["days_in_month"])
+    p2 = src.ph2
+    s = p2.shop_sheet.assign(code_key=p2.shop_sheet["code"].map(fold))
+    s = s.drop_duplicates("code_key", keep="first").reset_index(drop=True)
+    idx = pd.Index(s["code_key"])
+    t = p2.target.assign(code_key=p2.target["code"].map(fold))
+    names = t.drop_duplicates("code_key").set_index("code_key")["shop_name"]
+
+    out = s[["code", "code_key", "zone", "province", "phase"]].copy()
+    out["shop_name"] = [names.get(k) or n for k, n in zip(idx, s["shop_name"])]
+    for col in ("visibility", "visibility_size", "decorated_month", "group",
+                "cluster", "rs_name", "pbh_name", "mou_flag",
+                "true_friend_code", "outlet_code", "route", "target_quarter"):
+        out[col] = None
+    out["mou_flag"] = t.drop_duplicates("code_key").set_index("code_key")[
+        "mou_flag"].reindex(idx).to_numpy()
+
+    base = s[[f"base_{x}" for x in SEG]].apply(
+        lambda c: pd.to_numeric(c, errors="coerce"))
+    out["baseline_missing"] = base.isna().all(axis=1).to_numpy()
+    for x in SEG:
+        out[f"base_{x}"] = base[f"base_{x}"].fillna(0.0).to_numpy()
+
+    cur = ph2_current(src)
+    a = cur.groupby("code_key")[[f"ga_{x}" for x in SEG] + ["ap250_nontourist"]
+                                ].sum().reindex(idx).fillna(0.0)
+    for x in SEG:
+        out[f"ga_{x}"] = a[f"ga_{x}"].to_numpy()
+    out["ap_nontourist"] = a["ap250_nontourist"].to_numpy()
+
+    tsum = t.groupby("code_key")[["mou_baseline", "mou_target"]].sum().reindex(idx)
+    out["mou_baseline"] = tsum["mou_baseline"].fillna(0.0).to_numpy()
+    out["mou_target"] = tsum["mou_target"].fillna(0.0).to_numpy()
+    out["has_current_row"] = idx.isin(cur["code_key"])
+
+    out = _metrics(out, de, dm)
+    out["visibility_label"] = "Not set"
+    out["program_phase"] = 2
     return out.drop(columns="code_key")
 
 
@@ -212,6 +283,10 @@ def build_province(src: Source) -> pd.DataFrame:
     out["mou_target"] = ts["mou_target"].to_numpy()
     out = _metrics(out, de, dm)
 
+    return _rank(out)
+
+
+def _rank(out: pd.DataFrame) -> pd.DataFrame:
     # Summary's own RANK only covers rows 32:62. Published instead: a rank over
     # every province that has an MOU target, by RR achievement.
     has = out["mou_target"] > 0
@@ -219,6 +294,63 @@ def build_province(src: Source) -> pd.DataFrame:
     out.loc[has, "rank_ach_mou"] = out.loc[has, "ach_mou"].rank(
         method="min", ascending=False).astype(int)
     return out
+
+
+def _province_labels(out: pd.DataFrame, keys: pd.Index, sheet: pd.DataFrame,
+                     fallback_label: dict, fallback_region: dict) -> None:
+    """Label from the Summary row when there is one, region from the shops."""
+    sh = sheet.assign(province_key=sheet["province"].map(fold))
+    sh = sh.drop_duplicates("province_key").set_index("province_key")
+    out["province"] = [sh["province"].get(k) or fallback_label.get(k) for k in keys]
+    out["region"] = [fallback_region.get(k) or "" for k in keys]
+    out["region_sheet"] = [sh["region"].get(k) for k in keys]
+    out["on_summary"] = keys.isin(sh.index)
+
+
+def build_province_ph2(src: Source, shop2: pd.DataFrame) -> pd.DataFrame:
+    """Summary Ph2's province grid: COUNTIFS / SUMIFS of By Shop Ph2 by its
+    typed province (column C)."""
+    de = float(src.control["days_elapsed"])
+    dm = float(src.control["days_in_month"])
+    s = shop2.assign(province_key=shop2["province"].map(fold))
+    s = s[s["province_key"].ne("")]
+    keys = pd.Index(sorted(set(s["province_key"])))
+    out = pd.DataFrame({"province_key": keys})
+    g = s.groupby("province_key")
+    _province_labels(out, keys, src.ph2.province_sheet,
+                     g["province"].first().to_dict(),
+                     g["zone"].agg(lambda z: z.mode().iat[0]).to_dict())
+    out["n_shops"] = g.size().reindex(keys).to_numpy()
+    cols = ([f"base_{x}" for x in SEG] + [f"ga_{x}" for x in SEG]
+            + ["mou_baseline", "mou_target", "ap_nontourist"])
+    sums = g[cols].sum().reindex(keys)
+    for c in cols:
+        out[c] = sums[c].to_numpy()
+    return _rank(_metrics(out, de, dm))
+
+
+def build_province_all(src: Source, prov1: pd.DataFrame, prov2: pd.DataFrame
+                       ) -> pd.DataFrame:
+    """The PH1+PH2 "Summary ": each province's Ph1 row plus its Ph2 row.
+
+    Counts, baselines, actuals and MOU figures add; ratios and growth are
+    recomputed from the sums. The MOU actual adds Phase 1's AP1D200 to Phase
+    2's AP1D250, exactly as the sheet does.
+    """
+    de = float(src.control["days_elapsed"])
+    dm = float(src.control["days_in_month"])
+    cols = (["n_shops"] + [f"base_{x}" for x in SEG] + [f"ga_{x}" for x in SEG]
+            + ["mou_baseline", "mou_target", "ap_nontourist"])
+    both = pd.concat([prov1[["province_key", *cols]], prov2[["province_key", *cols]]])
+    sums = both.groupby("province_key")[cols].sum()
+    keys = sums.index
+    out = sums.reset_index()
+    label = (dict(zip(prov2["province_key"], prov2["province"]))
+             | dict(zip(prov1["province_key"], prov1["province"])))
+    region = (dict(zip(prov2["province_key"], prov2["region"]))
+              | {k: r for k, r in zip(prov1["province_key"], prov1["region"]) if r})
+    _province_labels(out, pd.Index(keys), src.ph2.all_province_sheet, label, region)
+    return _rank(_metrics(out, de, dm))
 
 
 def build_region(province: pd.DataFrame) -> pd.DataFrame:
@@ -231,6 +363,7 @@ def build_region(province: pd.DataFrame) -> pd.DataFrame:
                    for s in SEG]
                 + ["base_ga", "ga", "rr_ga", "growth_ga", "mou_baseline",
                    "mou_target", "ap_nontourist", "aprr_nontourist", "growth_mou"])
+    sum_cols = [c for c in sum_cols if c in province]   # Phase 2: no AP split
     g = province.groupby("region")[sum_cols].sum()
     regions = list(C.REGION_ORDER) + sorted(set(g.index) - set(C.REGION_ORDER))
     out = g.reindex(regions).fillna(0.0).reset_index().rename(columns={"index": "region"})

@@ -48,8 +48,12 @@ named in the log.
 |---|---|---|
 | `Data Total` | feed, by header name (row 1) | the monthly rows every report formula sums |
 | `Target Truefriend Submit 10` | feed, by header name (row 4) | roster: zone, province, MOU targets, visibility |
-| `By Shop` | guarded positions, row 4 labels | cached values to reconcile against |
-| `Summary` | guarded positions, rows 4 and 18; A1, A2, H16 | cached values; day counts; report month |
+| `By Shop Ph1` (before Oct'26: `By Shop`) | guarded positions, row 4 labels | cached values to reconcile against |
+| `Summary Ph1` (before Oct'26: `Summary`) | guarded positions, rows 4 and 18; A1, A2, H16 | cached values; day counts; report month |
+| `Data Total PH2` | Phase 2 feed, by header name (row 1) | the current month's Phase 2 rows; AP1D250 M&M is its MOU measure |
+| `Target Truefriend PH2` | Phase 2 feed, by header name (row 1) | Phase 2 MOU baseline (`AVG AP1D200`, or `AVG AP1D250` once renamed) and target (`Commission Recomment Target 1M`) |
+| `By Shop Ph2` | guarded positions, row 4 labels | the Phase 2 shop list, zone, province and **typed** GA baseline (I:K, published as given); the rest reconciled |
+| `Summary Ph2`, `Summary ` (PH1 + PH2) | guarded positions, rows 4 and 18 | cached values to reconcile against; the roll-up adds AP1D200 and AP1D250 as-is |
 | `Pivot Base` | **not read** | the baseline is recomputed from Data Total, which is how a stale pivot is caught |
 | `Data Current`, `Data Last`, `Sheet5`, `Target … (2)` | forbidden | hidden staging / old copies pointing at external workbooks |
 
@@ -62,6 +66,12 @@ The reasons for every ignored sheet are in `src/config.py → IGNORED_SHEETS`.
   Phase starts `Yes` (Pivot Base's page filter). Phase is a VLOOKUP into the
   current roster, so shops that have left drop out.
 - **AP1D200 non-tourist** = Mass + Migrant. **RR vs MOU** = its run-rate ÷ `Target Month`.
+- **Phase 2** (from Oct'26): the same GA arithmetic on its own feed; MOU is
+  AP1D250 Mass + Migrant (one column, no segment split). By Shop Ph2's SUMIFS
+  have no month filter, so the build **fails** if Data Total PH2 holds any
+  month but the report month. The dashboard's Phase selector shows Phase 1,
+  Phase 2, or PH1 + PH2; Trend and Visibility are Phase 1 only (no Phase 2
+  history yet).
 - Excel text matching is case-insensitive (`UDON THANI…` = `Udon Thani…`), and a
   number stored as text counts as 0. Both are mirrored.
 

@@ -17,6 +17,11 @@ disagreement is excused in exactly two cases, both named in the warning:
     left the roster -- Pivot Base was not refreshed after the roster changed.
 
 Anything else fails.
+
+Phase 2 (from Oct'26) is reconciled the same way, grid by grid: By Shop Ph2,
+Summary Ph2, and the PH1+PH2 "Summary ". Its GA baseline is typed on By Shop
+Ph2 and has no source in the workbook, so it is published as given and every
+build says so.
 """
 
 from __future__ import annotations
@@ -32,7 +37,8 @@ import pandas as pd
 
 from . import config as C
 from .ingest import Source, month_key
-from .metrics import SEG, baseline_rows, fold, joined_data, report_month
+from .metrics import (SEG, baseline_rows, fold, joined_data, ph2_current,
+                      report_month)
 
 
 @dataclass
@@ -221,11 +227,12 @@ def check_coverage(src: Source, rep: Report) -> None:
 def _excused_fields(src: Source, grid: str, key: str) -> dict[str, str]:
     """Fields of one row excused by a deviant formula, mapped to the reason."""
     out = {}
+    deps = C.FIELD_DEPENDENTS_SHORT if grid in C.SHORT_GRIDS else C.FIELD_DEPENDENTS
     for (g, k, f), why in src.deviations.items():
         if g != grid or k != key:
             continue
         out[f] = why
-        for dep in C.FIELD_DEPENDENTS.get(f, []):
+        for dep in deps.get(f, []):
             out.setdefault(dep, f"computed from {f}: {why}")
     return out
 
@@ -415,21 +422,38 @@ def check_province_grid(province: pd.DataFrame, src: Source, rep: Report
     return rec
 
 
+def _stale_gaps(rep: Report, province_sheet: pd.DataFrame | None
+                ) -> dict[str, np.ndarray]:
+    """The excused Pivot Base gap per province -- or, given a Summary province
+    grid, per region of that grid plus Total."""
+    gaps: dict[str, np.ndarray] = {}
+    stale = rep.notes.get("stale_baseline", {})
+    if province_sheet is None:
+        return {k: np.array(v["sheet_minus_ours"]) for k, v in stale.items()}
+    prov = province_sheet.assign(k=province_sheet["province"].map(fold))
+    region_of = dict(zip(prov["k"], prov["region"]))
+    for k, v in stale.items():
+        g = np.array(v["sheet_minus_ours"])
+        for r in (region_of.get(k), "Total"):
+            gaps[fold(r)] = gaps.get(fold(r), np.zeros(3)) + g
+    return gaps
+
+
 def check_region_grid(region: pd.DataFrame, src: Source, rep: Report
                       ) -> pd.DataFrame:
     """Regions are sums of provinces, so a stale province baseline flows up.
 
     Excuse a region field only by the SAME amount the province grid excused.
     """
-    stale = rep.notes.get("stale_baseline", {})
-    prov = src.province_sheet.assign(k=src.province_sheet["province"].map(fold))
-    region_of = dict(zip(prov["k"], prov["region"]))
-    gaps: dict[str, np.ndarray] = {}
-    for k, v in stale.items():
-        g = np.array(v["sheet_minus_ours"])
-        for r in (region_of.get(k), "Total"):
-            gaps[fold(r)] = gaps.get(fold(r), np.zeros(3)) + g
-    ours = region.set_index(region["region"].map(fold))
+    return reconcile(region, src.region_sheet, "region", "region", src, rep,
+                     _carried_excuser(region, "region",
+                                      _stale_gaps(rep, src.province_sheet)))
+
+
+def _carried_excuser(ours_frame: pd.DataFrame, key: str,
+                     gaps: dict[str, np.ndarray]):
+    """Excuse a field off by exactly a stale baseline carried up into it."""
+    ours = ours_frame.set_index(ours_frame[key].map(fold))
 
     def excuse(k, f, a, b):
         if k not in gaps or b is None:
@@ -448,7 +472,7 @@ def check_region_grid(region: pd.DataFrame, src: Source, rep: Report
                 return "stale Pivot Base baseline carried up from its province(s)"
         return None
 
-    return reconcile(region, src.region_sheet, "region", "region", src, rep, excuse)
+    return excuse
 
 
 def check_rollups(shop: pd.DataFrame, province: pd.DataFrame,
@@ -494,9 +518,146 @@ def check_against_previous(meta: dict, meta_path: Path, rep: Report) -> None:
                  f"build: {p} -> {meta.get('n_shops')}")
 
 
+# --- Phase 2 -----------------------------------------------------------------
+
+
+def check_ph2_period(src: Source, rep: Report) -> None:
+    """Every Phase 2 sheet must run on Summary Ph1's day counts and month."""
+    p2 = src.ph2
+    for name, ctl in ((p2.sheet_names["shop"], p2.shop_control),
+                      (p2.sheet_names["summary"], p2.control),
+                      (repr(p2.sheet_names["summary_all"]), p2.all_control)):
+        for k in ("days_elapsed", "days_in_month", "month_label"):
+            if str(ctl.get(k)) != str(src.control.get(k)):
+                rep.fail(f"{name} {k} = {ctl.get(k)!r} but Summary Ph1 has "
+                         f"{src.control.get(k)!r}; the phases disagree.")
+
+
+def check_ph2_feeds(src: Source, rep: Report) -> None:
+    p2, (label, key) = src.ph2, report_month(src)
+    d = p2.data
+    if len(bad := d[d["month"].isna()]):
+        rep.fail(f"{len(bad)} Data Total PH2 row(s) have an unparseable Mth, e.g. "
+                 f"row {bad['xl_row'].iat[0]}: {bad['month_label'].iat[0]!r}")
+    if len(other := d[d["month"].notna() & d["month"].ne(key)]):
+        rep.fail(f"Data Total PH2 holds {sorted(other['month_label'].unique())} "
+                 f"besides {label} ({len(other)} rows). By Shop Ph2's SUMIFS have "
+                 f"no month filter, so the Excel adds those rows into {label}. "
+                 f"Keep only the current month in Data Total PH2.")
+    if len(blank := d[d["code"].eq("")]):
+        rep.fail(f"{len(blank)} Data Total PH2 row(s) have no join_code "
+                 f"(rows {blank['xl_row'].head(5).tolist()}).")
+    if len(dup := d[d.duplicated(["month_label", "code"], keep=False)]):
+        rep.fail(f"{len(dup)} Data Total PH2 rows duplicate (Mth, join_code), e.g. "
+                 f"{dup[['month_label', 'code']].head(4).values.tolist()}.")
+    if p2.text_numbers:
+        cells = ", ".join(f"{c} ({h}={t!r})" for c, h, t in p2.text_numbers[:6])
+        rep.warn(f"{len(p2.text_numbers)} Data Total PH2 number(s) stored as TEXT "
+                 f"count as 0: {cells}" + (" ..." if len(p2.text_numbers) > 6 else ""))
+    t = p2.target
+    if dup := sorted(t.loc[t["code"].map(fold).duplicated(keep=False), "code"].unique()):
+        rep.fail(f"duplicate Combine Code on Target Truefriend PH2: {dup} -- "
+                 f"By Shop Ph2's SUMIFS would add both.")
+    if p2.baseline_header != C.TARGET_PH2_BASELINE_HEADERS[0]:
+        rep.warn(f"Phase 2 MOU baseline is read from Target Truefriend PH2 column "
+                 f"{p2.baseline_header!r} (what By Shop Ph2!Z sums) and published "
+                 f"as AP1D250. Rename the header to "
+                 f"{C.TARGET_PH2_BASELINE_HEADERS[0]!r} once confirmed.")
+
+
+def check_ph2_shops(src: Source, shop1: pd.DataFrame, shop2: pd.DataFrame,
+                    rep: Report) -> pd.DataFrame:
+    p2, (label, _) = src.ph2, report_month(src)
+    s = p2.shop_sheet
+    keys = s["code"].map(fold)
+    if dup := sorted(s.loc[keys.duplicated(), "code"]):
+        rep.fail(f"By Shop Ph2 lists a shop twice: {dup}")
+    roster = set(p2.target["code"].map(fold))
+    if off := sorted(s.loc[~keys.isin(roster), "code"]):
+        rep.warn(f"By Shop Ph2 shop(s) not on Target Truefriend PH2, so MOU "
+                 f"baseline and target are 0: {off}")
+    if absent := sorted(p2.target.loc[~p2.target["code"].map(fold).isin(set(keys)),
+                                      "code"]):
+        rep.warn(f"Target Truefriend PH2 shop(s) missing from By Shop Ph2, so on "
+                 f"no report row and not published: {absent}")
+    if len(nop := s[s["zone"].eq("") | s["province"].eq("")]):
+        rep.fail(f"By Shop Ph2 shop(s) with no Zone or PBH Province, so on no "
+                 f"Summary row: {nop['code'].tolist()}")
+    if both := sorted(set(shop1["code"].map(fold)) & set(shop2["code"].map(fold))):
+        rep.fail(f"shop(s) in BOTH phases, which the PH1+PH2 Summary would count "
+                 f"twice: {both}")
+    zone_t = p2.target.assign(k=p2.target["code"].map(fold)).drop_duplicates("k")
+    zone_t = dict(zip(zone_t["k"], zone_t["zone"]))
+    if diff := [(r.code, r.zone, zone_t[fold(r.code)]) for r in s.itertuples()
+                if zone_t.get(fold(r.code)) and fold(zone_t[fold(r.code)]) != fold(r.zone)]:
+        rep.warn(f"By Shop Ph2 Zone differs from the PH2 roster Region for "
+                 f"{len(diff)} shop(s) (By Shop Ph2 published): {diff[:3]}")
+
+    n_typed = int((~shop2["baseline_missing"]).sum())
+    rep.warn(f"Phase 2 GA baselines for {n_typed} shop(s) are typed values in By "
+             f"Shop Ph2!I:K. The months they average are not in the workbook, so "
+             f"they are published as given, unverified.")
+    rep.notes["ph2_baseline"] = "typed in By Shop Ph2!I:K; source period unknown"
+
+    cur = ph2_current(src)
+    total = cur["ga_mass"].sum() + cur["ga_migrant"].sum() + cur["ga_tourist"].sum()
+    off = cur[~cur["code_key"].isin(set(keys))]
+    if len(off) and total:
+        ga_off = (off["ga_mass"] + off["ga_migrant"] + off["ga_tourist"]).sum()
+        share = ga_off / total
+        (rep.fail if share > C.OFF_ROSTER_GA_FAIL_SHARE else rep.warn)(
+            f"{share:.1%} of Phase 2 {label} GA ({ga_off:,.0f}) is on {len(off)} "
+            f"Data Total PH2 shop(s) not on By Shop Ph2: {off['code'].tolist()[:6]}")
+    if len(nocur := shop2[~shop2["has_current_row"]]):
+        rep.warn(f"{len(nocur)} By Shop Ph2 shop(s) have no {label} row in Data "
+                 f"Total PH2 (shown as zero): {nocur['code'].tolist()[:8]}")
+
+    return reconcile(shop2, s, "code", "shop_ph2", src, rep)
+
+
+def _check_province_rows(p: pd.DataFrame, sheet_name: str, rep: Report) -> None:
+    if len(m := p[~p["on_summary"] & ((p["n_shops"] > 0) | (p["ga"] > 0)
+                                       | (p["ap_nontourist"] > 0))]):
+        rep.fail(f"province(s) with shops or actuals have no {sheet_name} row: "
+                 f"{m['province'].tolist()}")
+    if len(w := p[p["on_summary"] & (p["n_shops"] > 0)
+                  & (p["region"].map(fold) != p["region_sheet"].map(fold))]):
+        rep.fail(f"{sheet_name} region disagrees with the shops' Zone for: "
+                 + ", ".join(f"{r.province} ({sheet_name} {r.region_sheet}, "
+                             f"shops {r.region})" for r in w.itertuples()))
+
+
+def check_ph2_grids(src: Source, frames: dict, rep: Report) -> list[pd.DataFrame]:
+    p2 = src.ph2
+    n_sum, n_all = p2.sheet_names["summary"], repr(p2.sheet_names["summary_all"])
+    _check_province_rows(frames["province_ph2"], n_sum, rep)
+    _check_province_rows(frames["province_all"], n_all, rep)
+    recs = [reconcile(frames["province_ph2"], p2.province_sheet, "province",
+                      "province_ph2", src, rep),
+            reconcile(frames["region_ph2"], p2.region_sheet, "region",
+                      "region_ph2", src, rep),
+            # A stale Phase 1 Pivot Base flows into the roll-up unchanged.
+            reconcile(frames["province_all"], p2.all_province_sheet, "province",
+                      "province_all", src, rep,
+                      _carried_excuser(frames["province_all"], "province_key",
+                                       _stale_gaps(rep, None))),
+            reconcile(frames["region_all"], p2.all_region_sheet, "region",
+                      "region_all", src, rep,
+                      _carried_excuser(frames["region_all"], "region",
+                                       _stale_gaps(rep, p2.all_province_sheet)))]
+    for scope in ("ph2", "all"):
+        reg, prov = frames[f"region_{scope}"], frames[f"province_{scope}"]
+        body, total = reg[reg["region"] != "Total"], reg[reg["region"] == "Total"].iloc[0]
+        for f in ("n_shops", "ga", "base_ga", "ap_nontourist", "mou_target"):
+            if not (_close(float(body[f].sum()), float(total[f]))
+                    and _close(float(prov[f].sum()), float(total[f]))):
+                rep.fail(f"{scope}: regions / provinces do not sum to Total on {f}")
+    return recs
+
+
 def run_all(src: Source, meta: dict, meta_path: Path, is_final: bool,
-            shop: pd.DataFrame, province: pd.DataFrame, region: pd.DataFrame
-            ) -> tuple[Report, pd.DataFrame]:
+            shop: pd.DataFrame, province: pd.DataFrame, region: pd.DataFrame,
+            ph2: dict | None = None) -> tuple[Report, pd.DataFrame]:
     rep = Report()
     check_sheet_inventory(src, rep)
     check_period(src, rep, is_final)
@@ -507,8 +668,13 @@ def run_all(src: Source, meta: dict, meta_path: Path, is_final: bool,
     check_lookups(src, rep)
     check_coverage(src, rep)
     check_against_previous(meta, meta_path, rep)
-    recon = pd.concat([check_shop_grid(shop, src, rep),
-                       check_province_grid(province, src, rep),
-                       check_region_grid(region, src, rep)], ignore_index=True)
+    recs = [check_shop_grid(shop, src, rep),
+            check_province_grid(province, src, rep),
+            check_region_grid(region, src, rep)]
     check_rollups(shop, province, region, rep)
-    return rep, recon
+    if src.ph2 is not None:
+        check_ph2_period(src, rep)
+        check_ph2_feeds(src, rep)
+        recs.append(check_ph2_shops(src, shop, ph2["shop_ph2"], rep))
+        recs += check_ph2_grids(src, ph2, rep)
+    return rep, pd.concat(recs, ignore_index=True)

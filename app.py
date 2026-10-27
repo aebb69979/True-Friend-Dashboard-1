@@ -345,15 +345,31 @@ def period_label(p: str) -> str:
 
 
 # --- header -----------------------------------------------------------------
-h = st.columns([3, 1.3, 1.6, 0.6], vertical_alignment="bottom")
+h = st.columns([3, 1.3, 1.3, 1.6, 0.6], vertical_alignment="bottom")
 h[0].title("True Friend Dashboard")
-sel = h[2].selectbox("Reporting period", list(reversed(periods)),
+sel = h[3].selectbox("Reporting period", list(reversed(periods)),
                      index=0, format_func=period_label, key="period",
                      help=L("A closed month shows its -Final snapshot. The month in "
                             "progress shows the newest working copy.",
                             "เดือนที่ปิดยอดแล้วแสดงไฟล์ -Final ส่วนเดือนปัจจุบันแสดงไฟล์ล่าสุด"))
-lang_picker(h[3], "lang_main")
+lang_picker(h[4], "lang_main")
 pm = pmeta.get(sel, {})
+has_ph2 = bool(pm.get("has_ph2"))
+
+# Phase 1 measures MOU on AP1D200, Phase 2 on AP1D250; the PH1+PH2 view adds
+# the two, as the Excel's "Summary " does. Every MOU label says which.
+SCOPES = {"all": "PH1 + PH2", "ph1": "Phase 1", "ph2": "Phase 2"}
+AP_LABEL = {"ph1": "AP1D200", "ph2": "AP1D250", "all": "AP1D200/250"}
+if has_ph2:
+    scope = h[2].selectbox(
+        "Phase", list(SCOPES), format_func=SCOPES.get, key="scope",
+        help=L("Phase 2 shops (from Oct'26) are tracked on AP1D250 instead of "
+               "AP1D200. PH1 + PH2 adds the two, as the Excel's Summary sheet does.",
+               "ร้าน Phase 2 (ตั้งแต่ ต.ค. 69) วัดด้วย AP1D250 แทน AP1D200 · "
+               "PH1 + PH2 คือผลรวมสองเฟส เหมือนชีต Summary ใน Excel"))
+else:
+    scope = "ph1"
+AP = AP_LABEL[scope]
 de, dm = pm.get("days_elapsed"), pm.get("days_in_month")
 h[0].caption(L(f"{month_short(sel)} · data through day {de} of {dm} · run-rate "
                f"= actual ÷ {de} × {dm} · source: {pm.get('source_file')}",
@@ -361,15 +377,21 @@ h[0].caption(L(f"{month_short(sel)} · data through day {de} of {dm} · run-rate
                f"= ยอดจริง ÷ {de} × {dm} · ไฟล์ต้นทาง: {pm.get('source_file')}"))
 
 
-def for_period(df: pd.DataFrame) -> pd.DataFrame:
-    return (df[df["period"].eq(sel)]
-            .drop(columns=["period", "is_final"]).reset_index(drop=True))
+def for_period(df: pd.DataFrame, scope_: str | None = None) -> pd.DataFrame:
+    """One period's rows; for province / region, one scope's rows too."""
+    out = df[df["period"].eq(sel)]
+    if scope_ is not None:
+        out = out[out["scope"].eq(scope_)]
+    return (out.drop(columns=["period", "is_final", "scope"], errors="ignore")
+            .reset_index(drop=True))
 
 
-shop = for_period(d["shop"])
-province = for_period(d["province"])
+shop_all = for_period(d["shop"])
+shop = (shop_all if scope == "all" else
+        shop_all[shop_all["program_phase"].eq(2 if scope == "ph2" else 1)])
+province = for_period(d["province"], scope)
 monthly = for_period(d["monthly"])
-region_rows = for_period(d["region"])
+region_rows = for_period(d["region"], scope)
 
 regions_with_shops = [r for r in region_rows["region"]
                       if r != "Total" and region_rows.set_index("region").at[r, "n_shops"] > 0]
@@ -379,6 +401,7 @@ sel_regions = h[1].multiselect(
 
 prov_v = province[province["region"].isin(sel_regions)]
 shop_v = shop[shop["zone"].isin(sel_regions)].copy()
+shop_v["phase_label"] = shop_v["program_phase"].map({1: "Phase 1", 2: "Phase 2"})
 # The roster types provinces in mixed case ("CHON BURI 2", "Chon Buri 2"); Excel
 # matches them case-insensitively, so one display label per province here too.
 shop_v["province"] = shop_v["province"].str.title()
@@ -439,9 +462,9 @@ def ach_col():
     return st.column_config.ProgressColumn(
         "RR vs MOU", format="percent", min_value=0,
         max_value=1.5, color=T["series"][0],
-        help=L("AP1D200 non-tourist run-rate ÷ monthly MOU target. Bar tops out "
-               "at 150%.",
-               "AP1D200 run-rate (ไม่รวม Tourist) ÷ MOU target รายเดือน · แถบเต็มที่ 150%"))
+        help=L(f"{AP} non-tourist run-rate ÷ monthly MOU target. Bar tops out "
+               f"at 150%.",
+               f"{AP} run-rate (ไม่รวม Tourist) ÷ MOU target รายเดือน · แถบเต็มที่ 150%"))
 
 
 def common_columns() -> dict:
@@ -453,10 +476,10 @@ def common_columns() -> dict:
         "ga": num("GA MTD"),
         "rr_ga": num("GA run-rate"),
         "growth_pct": growth_col(),
-        "mou_baseline": num("AP1D200 baseline"),
+        "mou_baseline": num(f"{AP} baseline"),
         "mou_target": num("MOU target"),
-        "ap_nontourist": num("AP1D200 MTD"),
-        "aprr_nontourist": num("AP1D200 run-rate"),
+        "ap_nontourist": num(f"{AP} MTD"),
+        "aprr_nontourist": num(f"{AP} run-rate"),
         "ach_mou": ach_col(),
     }
 
@@ -518,26 +541,46 @@ tabs = st.tabs(["Overview", "Province",
                 "Visibility"])
 
 
+def mou_metric(col, k: pd.Series, title: str) -> None:
+    gap, mou = k["aprr_nontourist"] - k["mou_target"], k["mou_target"]
+    col.metric(title, f"{k['ach_mou']:.0%}",
+               delta=L(f"{gap:+,.0f} vs target {mou:,.0f}", f"{gap:+,.0f} เทียบเป้า {mou:,.0f}"),
+               help=L(f"Run-rate {k['aprr_nontourist']:,.1f} ÷ MOU target {mou:,.0f}. "
+                      f"Actual month-to-date {k['ap_nontourist']:,.0f}.",
+                      f"run-rate {k['aprr_nontourist']:,.1f} ÷ MOU target {mou:,.0f} · "
+                      f"ยอดจริงสะสม {k['ap_nontourist']:,.0f}"), height="stretch")
+
+
 def render_overview() -> None:
     k = rollup(prov_v)
-    c = st.columns(4)
+    # PH1 + PH2: MOU is shown per phase, since AP1D200 and AP1D250 are
+    # different measures; GA is the same measure and adds.
+    split_mou = scope == "all" and has_ph2
+    c = st.columns(5 if split_mou else 4)
     c[0].metric("True Friend shops", f"{k['n_shops']:,.0f}",
-                help=L("Shops on the roster (Target Truefriend Submit 10).",
-                       "ร้านค้าในรายชื่อ (Target Truefriend Submit 10)"), height="stretch")
-    gap, mou = k["aprr_nontourist"] - k["mou_target"], k["mou_target"]
-    c[1].metric("AP1D200 non-tourist · RR vs MOU",
-                f"{k['ach_mou']:.0%}",
-                delta=L(f"{gap:+,.0f} vs target {mou:,.0f}", f"{gap:+,.0f} เทียบเป้า {mou:,.0f}"),
-                help=L(f"Run-rate {k['aprr_nontourist']:,.1f} ÷ MOU target {mou:,.0f}. "
-                       f"Actual month-to-date {k['ap_nontourist']:,.0f}.",
-                       f"run-rate {k['aprr_nontourist']:,.1f} ÷ MOU target {mou:,.0f} · "
-                       f"ยอดจริงสะสม {k['ap_nontourist']:,.0f}"), height="stretch")
+                help=L("Shops on the Phase 1 roster (Target Truefriend Submit 10) "
+                       "and the Phase 2 By Shop Ph2 sheet.",
+                       "ร้านค้าในรายชื่อ Phase 1 (Target Truefriend Submit 10) และชีต "
+                       "By Shop Ph2") if has_ph2 else
+                L("Shops on the roster (Target Truefriend Submit 10).",
+                  "ร้านค้าในรายชื่อ (Target Truefriend Submit 10)"), height="stretch")
+    if split_mou:
+        for i, sc in enumerate(("ph1", "ph2"), start=1):
+            p_ = for_period(d["province"], sc)
+            mou_metric(c[i], rollup(p_[p_["region"].isin(sel_regions)]),
+                       f"{SCOPES[sc]} · {AP_LABEL[sc]} · RR vs MOU")
+    else:
+        mou_metric(c[1], k, f"{AP} non-tourist · RR vs MOU")
+    c = c[1:] if split_mou else c
     c[2].metric("GA run-rate", f"{k['rr_ga']:,.0f}",
                 delta=(L(f"{k['growth_pct']:+.1%} vs Jan–Feb baseline",
                          f"{k['growth_pct']:+.1%} เทียบฐาน ม.ค.–ก.พ.") if k["base_ga"]
                        else L("no Jan–Feb baseline", "ไม่มีฐาน ม.ค.–ก.พ.")),
-                help=L(f"Baseline GA {k['base_ga']:,.1f} = (Jan'26 + Feb'26) ÷ 2.",
-                       f"Baseline GA {k['base_ga']:,.1f} = (ม.ค. 69 + ก.พ. 69) ÷ 2"), height="stretch")
+                help=L(f"Baseline GA {k['base_ga']:,.1f} = (Jan'26 + Feb'26) ÷ 2."
+                       + (" Phase 2 baselines are as typed in the report." if scope != "ph1" else ""),
+                       f"Baseline GA {k['base_ga']:,.1f} = (ม.ค. 69 + ก.พ. 69) ÷ 2"
+                       + (" · ฐาน Phase 2 ใช้ตามที่กรอกในรายงาน" if scope != "ph1" else "")),
+                height="stretch")
     c[3].metric("GA month-to-date", f"{k['ga']:,.0f}",
                 help=L(f"Actual gross adds through day {de} of {dm}.",
                        f"ยอด GA จริงถึงวันที่ {de} จาก {dm}"), height="stretch")
@@ -546,7 +589,7 @@ def render_overview() -> None:
     cols = st.columns(2, gap="large")
     with cols[0], card("ov_mou", stretch=True):
         st.altair_chart(hbar(reg, "region", "ach_mou",
-                             "AP1D200 non-tourist run-rate vs MOU, by region",
+                             f"{AP} non-tourist run-rate vs MOU, by region",
                              target=1.0,
                              tooltip=[tip("region:N", "Region"),
                                       tip("ach_mou:Q", "RR vs MOU", ".1%"),
@@ -575,6 +618,21 @@ def render_overview() -> None:
                                     "ap_nontourist", "aprr_nontourist", "ach_mou"]],
               common_columns(), hide_index=True)
         stale_note()
+        ph2_note()
+
+
+def ph2_note() -> None:
+    if scope == "ph1" or not has_ph2:
+        return
+    st.caption(L("ⓘ Phase 2 GA baselines are typed into the report (By Shop Ph2); "
+                 "the report does not say which months they average, so they are "
+                 "shown as given."
+                 + (" MOU here adds Phase 1 AP1D200 and Phase 2 AP1D250, as the "
+                    "Excel Summary does." if scope == "all" else ""),
+                 "ⓘ ฐาน GA ของ Phase 2 กรอกไว้ในรายงาน (By Shop Ph2) โดยไม่ระบุว่าเฉลี่ย"
+                 "จากเดือนใด จึงแสดงตามที่กรอก"
+                 + (" · MOU ในหน้านี้รวม AP1D200 ของ Phase 1 กับ AP1D250 ของ Phase 2 "
+                    "เหมือนชีต Summary ใน Excel" if scope == "all" else "")))
 
 
 def stale_note() -> None:
@@ -597,7 +655,7 @@ def render_province() -> None:
     cols = st.columns([1, 1], gap="large")
     with cols[0], card("pr_mou", stretch=True):
         st.altair_chart(hbar(with_target, "province_label", "ach_mou",
-                             "AP1D200 non-tourist run-rate vs MOU",
+                             f"{AP} non-tourist run-rate vs MOU",
                              target=1.0, row_px=24,
                              tooltip=[tip("province_label:N", "Province"),
                                       tip("region:N", "Region"),
@@ -623,11 +681,12 @@ def render_province() -> None:
                  "growth_pct", "mou_target", "ap_nontourist", "aprr_nontourist",
                  "ach_mou", "growth_mou", "rank_ach_mou"]],
             common_columns() | {
-                "growth_mou": num("RR − AP1D200 baseline"),
+                "growth_mou": num(f"RR − {AP} baseline"),
                 "rank_ach_mou": num("Rank", "%d",
                                     help=L("By RR vs MOU, across all provinces with a target.",
                                            "เรียงตาม RR vs MOU ทุกจังหวัดที่มี MOU target"))},
             group="region" if grouped else None, hide_index=True)
+        ph2_note()
 
 
 FIELD_NAMES = {"growth_migrant": "migrant growth",
@@ -667,6 +726,7 @@ def render_shop() -> None:
 
     v = no_baseline_blank(v)
     v["visibility_display"] = v["visibility_label"].map(vis_label)
+    phase_col = ["phase_label"] if scope == "all" and has_ph2 else []
     with card("sh_table"):
         grouped = table_header("By shop", "sh_group")
         below = int((v["ach_mou"] < 1).sum())
@@ -675,7 +735,7 @@ def render_shop() -> None:
         table(
             "shop",
             for_table(v).sort_values("ach_mou", ascending=False)[
-                ["zone", "province", "shop_name", "code", "visibility_display",
+                ["zone", "province", "shop_name", "code", *phase_col, "visibility_display",
                  "base_ga", "ga", "rr_ga", "growth_pct", "mou_baseline", "mou_target",
                  "ap_nontourist", "aprr_nontourist", "ach_mou", "growth_mou",
                  "true_friend_code"]],
@@ -683,20 +743,27 @@ def render_shop() -> None:
                 "shop_name": st.column_config.TextColumn("Shop", width="medium"),
                 "code": "Combine code",
                 "visibility_display": "Visibility",
+                "phase_label": "Phase",
                 "growth_mou": num("RR − baseline"),
                 "true_friend_code": "True Friend code"},
             group="zone" if grouped else None,
             hide_index=True, height=min(38 + 35 * len(v), 760))
+        ph2_note()
         names = dict(zip(shop["code"], shop["shop_name"]))
-        for c_ in (x for x in notes.get("recomputed_cells", []) if x["grid"] == "shop"):
+        sheets_ = {n.strip() for n in pm.get("sheets") or []}
+        sheet_of = {"shop": "By Shop Ph1" if "By Shop Ph1" in sheets_ else "By Shop",
+                    "shop_ph2": "By Shop Ph2"}
+        for c_ in (x for x in notes.get("recomputed_cells", [])
+                   if x["grid"] in sheet_of and x["key"] in names):
             field = FIELD_NAMES.get(c_["field"], c_["field"])
+            sheet_ = sheet_of[c_["grid"]]
             st.caption(L(f"ⓘ {names.get(c_['key'], c_['key'])}: {field} (and the totals "
-                         f"built on it) differs from the Excel, whose cell By Shop!{c_['cell']} "
+                         f"built on it) differs from the Excel, whose cell {sheet_}!{c_['cell']} "
                          f"contains `{c_['sheet_formula']}` instead of `{c_['column_formula']}` "
                          f"like the rest of its column. Shown: {c_['ours']:,.1f}; "
                          f"Excel: {c_['sheet']:,.1f}.",
                          f"ⓘ {names.get(c_['key'], c_['key'])}: {field} (และยอดรวมที่คำนวณจากค่านี้) "
-                         f"ต่างจาก Excel เพราะเซลล์ By Shop!{c_['cell']} ใน Excel เป็น "
+                         f"ต่างจาก Excel เพราะเซลล์ {sheet_}!{c_['cell']} ใน Excel เป็น "
                          f"`{c_['sheet_formula']}` แทนที่จะเป็น `{c_['column_formula']}` "
                          f"เหมือนแถวอื่นในคอลัมน์ · แดชบอร์ด: {c_['ours']:,.1f} · "
                          f"Excel: {c_['sheet']:,.1f}"))
@@ -708,7 +775,25 @@ MEASURES = {"GA": ("ga", "Gross adds"),
 ALL_SHOPS = "__all__"
 
 
+def phase1_only() -> bool:
+    """Trend and Visibility read the monthly history, which only Phase 1 has
+    (Data Total PH2 holds the current month alone). True = nothing to draw."""
+    if not has_ph2:
+        return False
+    if scope == "ph2":
+        st.info(L("Phase 2 has no monthly history yet: Data Total PH2 holds the "
+                  "current month only. Switch Phase to Phase 1 or PH1 + PH2.",
+                  "Phase 2 ยังไม่มีข้อมูลรายเดือนย้อนหลัง (Data Total PH2 มีเฉพาะเดือน"
+                  "ปัจจุบัน) เลือก Phase 1 หรือ PH1 + PH2"))
+        return True
+    st.caption(L("Phase 1 shops only — Phase 2 has no monthly history yet.",
+                 "เฉพาะร้าน Phase 1 · Phase 2 ยังไม่มีข้อมูลรายเดือนย้อนหลัง"))
+    return False
+
+
 def render_trend() -> None:
+    if phase1_only():
+        return
     with card("tr_chart"):
         _trend()
 
@@ -782,6 +867,8 @@ def render_visibility() -> None:
     Mirrors the workbook's ตกแต่งแล้ว pivots from the monthly table. Only
     complete months are compared: the report month is partial in every snapshot.
     """
+    if phase1_only():
+        return
     current = pm.get("period")
     m = monthly[monthly["on_roster"] & monthly["zone"].isin(sel_regions)
                 & monthly["month"].lt(current)]

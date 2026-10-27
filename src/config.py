@@ -40,8 +40,26 @@ SNAPSHOT_EXAMPLE = "Report True Friend V3.1 DD-MM-YYYY[-Final].xlsx"
 
 SHEET_DATA = "Data Total"
 SHEET_TARGET = "Target Truefriend Submit 10"
-SHEET_SUMMARY = "Summary"
-SHEET_SHOP = "By Shop"
+# Oct'26 split the program into phases: the grids we read became "Summary Ph1"
+# / "By Shop Ph1" (same layout), and "Summary " (trailing space) became a
+# PH1+PH2 roll-up with a different layout. Candidates are tried in order, first
+# present wins -- so a new workbook binds Ph1 and never the roll-up, and an old
+# one still binds "Summary" / "By Shop".
+SHEET_SUMMARY = ("Summary Ph1", "Summary")
+SHEET_SHOP = ("By Shop Ph1", "By Shop")
+
+# Phase 2 (from Oct'26). All five are read together or not at all: a snapshot
+# with none of them is Phase 1 only; one with some but not all is refused.
+# SHEET_SUMMARY_ALL is the PH1+PH2 roll-up -- the same trimmed name as the
+# old Phase 1 "Summary", so it is only ever bound when Phase 2 is present,
+# and its layout's "PH1 & PH2" banner guards against binding the wrong one.
+SHEET_DATA_PH2 = "Data Total PH2"
+SHEET_TARGET_PH2 = "Target Truefriend PH2"
+SHEET_SHOP_PH2 = "By Shop Ph2"
+SHEET_SUMMARY_PH2 = "Summary Ph2"
+SHEET_SUMMARY_ALL = "Summary"
+PH2_SHEETS = (SHEET_DATA_PH2, SHEET_TARGET_PH2, SHEET_SHOP_PH2,
+              SHEET_SUMMARY_PH2)
 
 # Names that must NEVER be bound as a source, even if a sheet above is renamed
 # onto them. Matched on the trimmed name.
@@ -55,9 +73,10 @@ FORBIDDEN_SOURCE_SHEETS = {
 # Read only to detect churn -- validate.check_sheet_inventory warns when a sheet
 # appears or disappears. Never fatal.
 EXPECTED_SHEETS = {
-    "Data Current", "Data Last", "Summary", "By Shop", "Data Total", "Code",
-    "Target Truefriend Submit 10", "ตกแต่งแล้ว", "INcentive", "Pivot Base",
-    "Target Truefriend Submit 10 (2)", "Sheet5",
+    "Data Current", "Data Last", "Summary", "Summary Ph1", "Summary Ph2",
+    "By Shop Ph1", "By Shop Ph2", "Data Total", "Data Total PH2", "Code",
+    "Target Truefriend Submit 10", "Target Truefriend PH2", "ตกแต่งแล้ว",
+    "INcentive", "Pivot Base", "Target Truefriend Submit 10 (2)", "Sheet5",
 }
 
 # Sheets deliberately never ingested, and WHY -- so nobody wires one back in.
@@ -75,6 +94,44 @@ IGNORED_SHEETS = {
                   "Visibility page rebuilds these from the monthly table",
     "INcentive": "a chart shell with no cells",
 }
+
+# --- Feed: Data Total PH2 (header row 1, bound by name) ----------------------
+# Phase 2's monthly paste. Its own header names, and one current month only:
+# By Shop Ph2's SUMIFS have NO month filter, so a second month pasted below
+# would be summed into this one (validate fails on that).
+DATA_PH2_COLS = {
+    "Mth": "month_label",
+    "code_D": "retailer_code",
+    "code_T": "s2_code",
+    "join_code": "code",
+    "rtr_name": "shop_name",
+    "Region": "region",
+    "Province": "province",
+    "GA Mass": "ga_mass", "GA Migrant": "ga_migrant", "GA Tourist": "ga_tourist",
+    "GA": "ga_total_sheet",
+    # Phase 2's MOU measure: AP1D250, Mass + Migrant. No segment split.
+    "AP1D250 M&M": "ap250_nontourist",
+}
+DATA_PH2_NUMERIC = ("ga_mass", "ga_migrant", "ga_tourist", "ga_total_sheet",
+                    "ap250_nontourist")
+DATA_PH2_TEXT = ("month_label", "retailer_code", "s2_code", "code",
+                 "shop_name", "region", "province")
+
+# --- Feed: Target Truefriend PH2 (header row 1, bound by name) --------------
+TARGET_PH2_HEADER_ROW = 1
+TARGET_PH2_COLS = {
+    "No": "no",
+    "Region": "zone",
+    "Combine Code": "code",
+    "ชื่อร้าน": "shop_name",
+    "Commission Recomment Target 1M": "mou_target",
+    "MOU": "mou_flag",
+}
+# By Shop Ph2!Z reads its MOU baseline from this column. It is headed
+# "AVG AP1D200" but the report owner understands it as AP1D250; either header
+# binds, so the expected rename does not break the build.
+TARGET_PH2_BASELINE_HEADERS = ("AVG AP1D250", "AVG AP1D200")
+TARGET_PH2_NUMERIC = ("mou_baseline", "mou_target")
 
 # --- Months -----------------------------------------------------------------
 # The workbook labels months as text, "Aug'26". Parsed to a sortable key.
@@ -197,6 +254,9 @@ class GridLayout:
     control: dict[str, str] = field(default_factory=dict)
     # Rows whose key equals one of these are totals, not entities.
     total_keys: tuple[str, ...] = ()
+    # Fields that are typed INPUTS on this sheet, not formulas: read as data
+    # and never checked for formula deviations (every value differs).
+    inputs: tuple[str, ...] = ()
 
 
 def _metric_fields(row: int, first: str) -> dict[str, tuple[str, int, str]]:
@@ -305,11 +365,124 @@ SUMMARY_REGION_LAYOUT_V31 = GridLayout(
     total_keys=("Total",),
 )
 
+# The Phase 2 block: the GA part of the 29 columns, then AP1D250 as a single
+# non-tourist total -- no Mass / migrant / tourist split. The AP headers differ
+# between sheets, so they are passed in.
+def _short(row: int, first: str, *, mou_label: str, ap_label: str,
+           rr_label: str, pct_label: str = "% Growth"
+           ) -> dict[str, tuple[str, int, str]]:
+    labels = [
+        ("base_mass", "Mass"), ("base_migrant", "migrant"),
+        ("base_tourist", "tourist"), ("base_ga", "Baseline GA"),
+        ("ga_mass", "Mass"), ("ga_migrant", "migrant"), ("ga_tourist", "tourist"),
+        ("ga", "Actual GA"),
+        ("rr_mass", "Mass RR"), ("rr_migrant", "migrant RR"),
+        ("rr_tourist", "tourist RR"), ("rr_ga", "RR GA"),
+        ("growth_mass", "Mass"), ("growth_migrant", "migrant"),
+        ("growth_tourist", "tourist"), ("growth_ga", "Total Growth GA"),
+        ("growth_pct", pct_label),
+        ("mou_baseline", mou_label), ("mou_target", "MOU"),
+        ("ap_nontourist", ap_label), ("aprr_nontourist", rr_label),
+        ("ach_mou", "RR Ach MOU"), ("growth_mou", "Growth form MOU Baseline"),
+    ]
+    start = _col_idx(first)
+    return {name: (_idx_col(start + i), row, label)
+            for i, (name, label) in enumerate(labels)}
+
+
+# By Shop Ph2: header row 4, rows from 5. Zone, province and the Jan-Feb GA
+# baseline (I:K) are TYPED here and exist nowhere else in the workbook.
+SHOP_PH2_LAYOUT_V1 = GridLayout(
+    name="ph2.v1",
+    first_data_row=5,
+    max_data_row=400,
+    key_col="F",
+    fields={
+        "zone": ("B", 4, "Zone"),
+        "province": ("C", 4, "PBH Province"),
+        "code": ("F", 4, "Combine Code"),
+        "shop_name": ("G", 4, "Retailer Name"),
+        "phase": ("H", 4, "Phase"),
+        **_short(4, "I", mou_label="AP1D250 Non Tourist",
+                 ap_label="AP1D250 Non Tourist",
+                 rr_label="AP1D250 Non Tourist GA RR"),
+        "remark": ("AF", 4, "Remark"),
+    },
+    banners=[("I", 3, "Baseline GA"), ("U", 3, "Growth"), ("Z", 3, "Baseline"),
+             ("AA", 3, "Target")],
+    control={"days_elapsed": "A1", "days_in_month": "A2", "month_label": "M2"},
+    inputs=("base_mass", "base_migrant", "base_tourist"),
+)
+
+# Summary Ph2 and the PH1+PH2 "Summary": province grid header row 18, rows
+# 19-62; region block header row 4, rows 5-13. The B17 / B3 banner names the
+# phase, so neither can bind the other (or Summary Ph1).
+SUMMARY_PH2_PROVINCE_LAYOUT_V1 = GridLayout(
+    name="ph2.v1", first_data_row=19, max_data_row=62, key_col="B",
+    fields={
+        "region": ("A", 18, "Region"),
+        "province": ("B", 18, "Province"),
+        "n_shops": ("C", 18, "#RTR True Friend"),
+        # U18 says AP1D200, a leftover label; the cells sum By Shop Ph2!Z.
+        **_short(18, "D", mou_label="AP1D200 Non Tourist",
+                 ap_label="AP1D250 Non Tourist",
+                 rr_label="AP1D250 Non Tourist GA RR"),
+    },
+    banners=[("B", 17, "PH2"), ("D", 17, "Baseline GA"), ("P", 17, "Growth RR"),
+             ("U", 17, "Baseline"), ("V", 17, "Target")],
+    control={"days_elapsed": "A1", "days_in_month": "A2", "month_label": "H16"},
+)
+SUMMARY_PH2_REGION_LAYOUT_V1 = GridLayout(
+    name="ph2.v1", first_data_row=5, max_data_row=13, key_col="B",
+    fields={
+        "region": ("B", 4, "Region"),
+        "n_shops": ("C", 4, "#RTR True Friend"),
+        **_short(4, "D", mou_label="AP1D250 Non Tourist",
+                 ap_label="AP1D250 Non Tourist",
+                 rr_label="AP1D250 Non Tourist GA RR",
+                 pct_label="% Growth Baseline GA"),
+    },
+    banners=[("B", 3, "PH2")],
+    total_keys=("Total",),
+)
+SUMMARY_ALL_PROVINCE_LAYOUT_V1 = GridLayout(
+    name="all.v1", first_data_row=19, max_data_row=62, key_col="B",
+    fields={
+        "region": ("A", 18, "Region"),
+        "province": ("B", 18, "Province"),
+        "n_shops": ("C", 18, "#RTR True Friend"),
+        **_short(18, "D", mou_label="AP1D200 Non Tourist",
+                 ap_label="AP1D200 Non Tourist",
+                 rr_label="AP1D200/250 Non Tourist GA RR"),
+    },
+    banners=[("B", 17, "PH1 & PH2"), ("D", 17, "Baseline GA"),
+             ("P", 17, "Growth RR"), ("U", 17, "Baseline"), ("V", 17, "Target")],
+    control={"days_elapsed": "A1", "days_in_month": "A2", "month_label": "H16"},
+)
+SUMMARY_ALL_REGION_LAYOUT_V1 = GridLayout(
+    name="all.v1", first_data_row=5, max_data_row=13, key_col="B",
+    fields={
+        "region": ("B", 4, "Region"),
+        "n_shops": ("C", 4, "#RTR True Friend"),
+        **_short(4, "D", mou_label="AP1D200/250 Non Tourist",
+                 ap_label="AP1D200 Non Tourist",
+                 rr_label="AP1D200/250 Non Tourist GA RR",
+                 pct_label="% Growth Baseline GA"),
+    },
+    banners=[("B", 3, "PH1 & PH2")],
+    total_keys=("Total",),
+)
+
 # Tried in order, newest first. When the sheet is restructured, ADD a layout at
 # the front -- never edit one in place, or old snapshots stop rebuilding.
 SHOP_LAYOUTS = (SHOP_LAYOUT_V31,)
 SUMMARY_PROVINCE_LAYOUTS = (SUMMARY_PROVINCE_LAYOUT_V31,)
 SUMMARY_REGION_LAYOUTS = (SUMMARY_REGION_LAYOUT_V31,)
+SHOP_PH2_LAYOUTS = (SHOP_PH2_LAYOUT_V1,)
+SUMMARY_PH2_PROVINCE_LAYOUTS = (SUMMARY_PH2_PROVINCE_LAYOUT_V1,)
+SUMMARY_PH2_REGION_LAYOUTS = (SUMMARY_PH2_REGION_LAYOUT_V1,)
+SUMMARY_ALL_PROVINCE_LAYOUTS = (SUMMARY_ALL_PROVINCE_LAYOUT_V1,)
+SUMMARY_ALL_REGION_LAYOUTS = (SUMMARY_ALL_REGION_LAYOUT_V1,)
 
 # --- Reconciliation ---------------------------------------------------------
 
@@ -350,6 +523,21 @@ FIELD_DEPENDENTS = {
     "aprr_migrant": ["aprr_nontourist", "ach_mou", "growth_mou"],
     "aprr_nontourist": ["ach_mou", "growth_mou"],
 }
+
+# Phase 2 and the PH1+PH2 roll-up have no AP segments: the non-tourist total
+# is the input, and the run-rate is computed from it.
+FIELD_DEPENDENTS_SHORT = {
+    k: v for k, v in FIELD_DEPENDENTS.items()
+    if not k.startswith(("ap_", "aprr_"))} | {
+    "ap_nontourist": ["aprr_nontourist", "ach_mou", "growth_mou"],
+    "aprr_nontourist": ["ach_mou", "growth_mou"],
+}
+SHORT_GRIDS = ("shop_ph2", "province_ph2", "region_ph2", "province_all",
+               "region_all")
+
+# The MOU measure each scope reports, for labels.
+SCOPES = ("all", "ph1", "ph2")
+SCOPE_AP_LABEL = {"ph1": "AP1D200", "ph2": "AP1D250", "all": "AP1D200/250"}
 
 # A baseline difference is explained as "Pivot Base not refreshed" only if it
 # equals the baseline of at most this many off-roster shops in that province.

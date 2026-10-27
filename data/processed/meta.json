@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-10-27T12:12:17+00:00",
+  "built_at": "2026-10-27T12:21:06+00:00",
   "source_file": "Report True Friend V3.1 21-10-2026.xlsx",
   "source_sha256": "08c54a4efa75a4ffc23965d3c1edd61024b3d12afeaf3b367202a6223177c976",
   "report_version": "3.1",
@@ -62,7 +62,7 @@
   "n_shops_ph2": 22,
   "periods": {
     "2026-08": {
-      "built_at": "2026-10-27T12:11:57+00:00",
+      "built_at": "2026-10-27T12:20:50+00:00",
       "source_file": "Report True Friend V3.1 31-08-2026-Final.xlsx",
       "source_sha256": "77964f64ece3360d22adcbaffcc5880a0459fdd84d2fece1485deef14b2f3459",
       "report_version": "3.1",
@@ -290,7 +290,7 @@
       }
     },
     "2026-10": {
-      "built_at": "2026-10-27T12:12:17+00:00",
+      "built_at": "2026-10-27T12:21:06+00:00",
       "source_file": "Report True Friend V3.1 21-10-2026.xlsx",
       "source_sha256": "08c54a4efa75a4ffc23965d3c1edd61024b3d12afeaf3b367202a6223177c976",
       "report_version": "3.1",
